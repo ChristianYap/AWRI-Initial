@@ -1,4 +1,4 @@
-# MarkAndRecapture
+# AWRI Fisheries Abundance Software Initial
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/staddlez/AWRI-Initial/master)
 
 Simulation for mark and recapture method used in ecology to estimate population size.
