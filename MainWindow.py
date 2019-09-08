@@ -8,7 +8,7 @@
 
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-from mplwidget import MplWidget
+
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -112,6 +112,15 @@ class Ui_MainWindow(object):
         self.checkBoxNoTagLoss = QtWidgets.QCheckBox(self.tabSimulator)
         self.checkBoxNoTagLoss.setGeometry(QtCore.QRect(290, 120, 141, 21))
         self.checkBoxNoTagLoss.setObjectName("checkBoxNoTagLoss")
+        self.numTrialsTitle = QtWidgets.QLabel(self.tabSimulator)
+        self.numTrialsTitle.setGeometry(QtCore.QRect(140, 370, 91, 41))
+        self.numTrialsTitle.setObjectName("numTrialsTitle")
+        self.numTrialsInput = QtWidgets.QSpinBox(self.tabSimulator)
+        self.numTrialsInput.setGeometry(QtCore.QRect(250, 380, 131, 22))
+        self.numTrialsInput.setMinimum(1)
+        self.numTrialsInput.setMaximum(1000000)
+        self.numTrialsInput.setProperty("value", 1)
+        self.numTrialsInput.setObjectName("numTrialsInput")
         self.tabBox.addTab(self.tabSimulator, "")
         self.tabResults = QtWidgets.QWidget()
         self.tabResults.setObjectName("tabResults")
@@ -169,11 +178,13 @@ class Ui_MainWindow(object):
         self.checkBoxCaptureVary.setText(_translate("MainWindow", "Varies Between Samples"))
         self.checkBoxCpatureRandom.setText(_translate("MainWindow", "Randomize"))
         self.checkBoxNoTagLoss.setText(_translate("MainWindow", "No Tag Loss"))
+        self.numTrialsTitle.setText(_translate("MainWindow", "Number of Trials:"))
         self.tabBox.setTabText(self.tabBox.indexOf(self.tabSimulator), _translate("MainWindow", "Raw Simulation"))
         self.tabBox.setTabText(self.tabBox.indexOf(self.tabResults), _translate("MainWindow", "Results"))
         self.saveResultsButton.setText(_translate("MainWindow", "Save Results"))
         self.menuMain.setTitle(_translate("MainWindow", "File"))
         self.menuResults.setTitle(_translate("MainWindow", "Options"))
+from mplwidget import MplWidget
 
 
 if __name__ == "__main__":

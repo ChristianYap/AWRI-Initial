@@ -7,13 +7,14 @@
 #################################################################################
 import random
 import sys
-from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import QDate, QTime, QDateTime, Qt
 from MainWindow import Ui_MainWindow
-from matplotlib.backends.backend_qt5agg import (NavigationToolbar2QT as NavigationToolbar)
 import numpy as np
 import random
+import matplotlib.pyplot as plt
+
+
 
 #################################################################################
 # CLASS FOR THE GUI
@@ -81,20 +82,25 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     #################################################################################
     def simulateFishes(self):
         QMessageBox.information(self, "A Good Message", "Success. Results shown in the results box.")
-        fs = 500
-        f = random.randint(1, 100)
-        ts = 1 / fs
-        length_of_signal = 100
-        t = np.linspace(0, 1, length_of_signal)
+        np.random.seed(100)
+        np_hist = np.random.normal(loc=0, scale=1, size=1000)
+        np_hist[:10]
+        hist, bin_edges = np.histogram(np_hist)
+        plt.figure(figsize=[10, 8])
+        plt.bar(bin_edges[:-1], hist, width=0.5, color='#0504aa', alpha=0.7)
+        plt.xlim(min(bin_edges), max(bin_edges))
+        plt.grid(axis='y', alpha=0.75)
+        plt.xlabel('Value', fontsize=15)
+        plt.ylabel('Frequency', fontsize=15)
+        plt.xticks(fontsize=15)
+        plt.yticks(fontsize=15)
+        plt.ylabel('Frequency', fontsize=15)
+        plt.title('Normal Distribution Histogram', fontsize=15)
+        plt.show()
 
-        cosinus_signal = np.cos(2 * np.pi * f * t)
-        sinus_signal = np.sin(2 * np.pi * f * t)
-        self.MplWidget.canvas.axes.clear()
-        self.MplWidget.canvas.axes.plot(t, cosinus_signal)
-        self.MplWidget.canvas.axes.plot(t, sinus_signal)
-        self.MplWidget.canvas.axes.legend(('cosinus', 'sinus'), loc='upper right')
-        self.MplWidget.canvas.axes.set_title('Cosinus - Sinus Signal')
-        self.MplWidget.canvas.draw()
+        #https://www.datacamp.com/community/tutorials/histograms-matplotlib
+
+
 
 #################################################################################
 # MAIN FUNCTION
