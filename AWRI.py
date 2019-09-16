@@ -11,8 +11,46 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import QDate, QTime, QDateTime, Qt
 from MainWindow import Ui_MainWindow
 import numpy as np
-import random
 import matplotlib.pyplot as plt
+import array as arr
+from dataclasses import dataclass
+
+
+#################################################################################
+# FISH CLASS
+#################################################################################
+@dataclass
+class Fish:
+    captureProbQ: float
+    tagged: int
+    tagLoss: int
+    subReachPos: int
+    mortality: int
+    enterExit: int
+
+    #################################################################################
+    # FISH CONSTRUCTOR
+    #################################################################################
+    def __init__(self, captureProbQ: float, tagged: int, tagLoss: int, subReachPos: int, mortality: int,
+                 enterExit: int):
+        self.captureProbQ = captureProbQ
+        self.tagged = tagged
+        self.tagLoss = tagLoss
+        self.subReachPos = subReachPos
+        self.mortality = mortality
+        self.enterExit = enterExit
+
+    #################################################################################
+    # SETTER FOR FISH TAGGING
+    #################################################################################
+    def setCaptureProbability(self, captureProbQ):
+        self.captureProbQ = captureProbQ
+
+    #################################################################################
+    # SETTER FOR FISH TAGGING
+    #################################################################################
+    def setFishTag(self, tagStatus):
+        self.tagged = tagStatus
 
 
 #################################################################################
@@ -78,7 +116,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Critical)
             msg.setText("Invalid Input:")
-            msg.setInformativeText("Amount of recaptured-marked fishes must be less than marked fishes from first catch")
+            msg.setInformativeText(
+                "Amount of recaptured-marked fishes must be less than marked fishes from first catch")
             msg.setWindowTitle("Error")
             msg.exec_()
 
@@ -171,25 +210,107 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     #################################################################################
     def simulateAndPlot(self):
 
-        np.random.seed(1000)
+        # Declare global array for results:
+        simulationResults = []
+        self.simulationParameterPrint.clear()
+
+        for i in range(0, numTrials):
+            # Generate random numbers
+            qCatchValue = np.random.rand(populationSize)
+
+            # fish = Fish(qCatchValue[0], 1, 1, 1, 1, 1)
+            # fishTwo = Fish(2.0, 2, 2, 2, 2, 2)
+            # a = [fish]
+            # a.insert(1, fishTwo)
+            # print(str(a[0].captureProbQ))
+            # print(str(a[1].captureProbQ))
+            # print(str(qCatchValue[0]))
+
+            # Create fish structure, generate characteristics for each fish
+            for i in range(len(qCatchValue)):
+                if i == 0:
+                    fish = Fish(qCatchValue[i], -1, -1, -1, -1, -1)
+                    fishPopulation = [fish]
+                    # print(str(fishPopulation[i].captureProbQ))
+                else:
+                    fish = Fish(qCatchValue[i], -1, -1, -1, -1, -1)
+                    fishPopulation.insert(i, fish)
+                    # print(str(fishPopulation[i].captureProbQ))
+
+            # print(qCatchValue)
+            # for i in range(len(qCatchValue)):
+            # print('Catch probability for Fish ' + str(i) + ' is = ' + str(fishPopulation[i].captureProbQ) + ' and ' + str(fishPopulation[i].tagged))
+
+            # ################################START THE FIRST PASS ################################################# #
+
+            firstPassMarkedFishes = 0
+            # First set of fish population marked.
+            for j in range(len(qCatchValue)):
+                if fishPopulation[j].captureProbQ <= self.captureProbabilityInput.value():
+                    # Tag the fish
+                    fishPopulation[j].setFishTag(1)
+                    # Increment Counter:
+                    firstPassMarkedFishes += 1
+
+            self.simulationParameterPrint.append('Fishes caught during first pass: ' + str(firstPassMarkedFishes))
+
+            # ################################ START SECOND PASS ################################################# #
+
+            # Create new catch values
+            qCatchValueTwo = np.random.rand(populationSize)
+
+            # Declare variables
+            secondPassFishes = 0
+            recapturedTaggedFish = 0
+
+            # SECOND CAPTURE
+            for k in range(len(qCatchValueTwo)):
+                fishPopulation[k].setCaptureProbability(qCatchValueTwo[k])
+                if fishPopulation[k].captureProbQ < self.captureProbabilityInput.value():
+                    secondPassFishes += 1
+                    if fishPopulation[k].tagged == 1:
+                        recapturedTaggedFish += 1
+
+            # self.simulationParameterPrint.append('Fishes caught during second pass: ' + str(secondPassFishes))
+            # self.simulationParameterPrint.append('Recaptured Tagged Fish: ' + str(recapturedTaggedFish))
+            # Estimation formula
+            estimatedSampleSizeN = (((firstPassMarkedFishes + 1) * (secondPassFishes + 1)) / (recapturedTaggedFish + 1)) - 1
+            # self.simulationParameterPrint.append('Estimated Population Size: ' + str(estimatedSampleSizeN) + '\n\n\n\n')
+            simulationResults.append(estimatedSampleSizeN)
+            arrayResult = np.array(simulationResults)
+
+
+        # Graph
+        # count number in each bin
+        bins = np.linspace(min(simulationResults), max(simulationResults))
+        hist, _ = np.histogram(simulationResults, bins)
+
+        # np.random.seed(1000)
         # np_hist = [0, 1, 2, 3]
-        np_hist = np.random.normal(loc=0, scale=1, size=1000)
-        np_hist[:10]
-        np_hist.mean(), np_hist.std()
-        hist, bin_edges = np.histogram(np_hist)
-        bin_edges = np.round(bin_edges, 0)
+        # np_hist = np.random.normal(loc=0, scale=1, size=1000)
+        # np_hist[:10]
+        # np_hist.mean(), np_hist.std()
+        # hist, bin_edges = np.histogram(np_hist)
+        # bin_edges = np.round(bin_edges, 0)
         plt.figure(figsize=[10, 8])
-        plt.bar(bin_edges[:-1], hist, width=0.5, color='#0504aa', alpha=0.7)
-        plt.xlim(min(bin_edges), max(bin_edges))
+        # plt.bar(bin_edges[:-1], hist, width=0.5, color='#0504aa', alpha=0.7)
+        plt.bar(bins[:-1], hist, label=str(populationSize) + ' samples', width=1)
+        # plt.plot(bins[:-1], hist, 'r-', lw=5)
+        plt.axvline(populationSize, color='g', linestyle="dashed", lw=2, label=str('True Population Size'))
+        plt.axvline(arrayResult.mean(), color='r', lw=2, label=str('Simulation Mean'))
+        plt.xlim(min(bins), max(bins))
         plt.grid(axis='y', alpha=0.75)
-        plt.xlabel('Value', fontsize=15)
+        plt.xlabel('Population Estimate', fontsize=15)
         plt.ylabel('Frequency', fontsize=15)
         plt.xticks(fontsize=15)
         plt.yticks(fontsize=15)
         plt.ylabel('Frequency', fontsize=15)
-        plt.title('Simulation Histogram', fontsize=15)
+        plt.title('Population Estimate Simulation N = ' + str(numTrials), fontsize=15)
+        plt.legend(loc='best')
         plt.show()
-        #https://www.datacamp.com/community/tutorials/histograms-matplotlib
+
+        # https://www.datacamp.com/community/tutorials/histograms-matplotlib
+        # https://www.youtube.com/watch?time_continue=79&v=Z2zUGmqIDto
 
     #################################################################################
     # SIMULATION - TAB TWO
@@ -213,7 +334,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.getNumTrials()
 
         # Simulate and plot
-        self.simulateAndPlot
+        self.simulateAndPlot()
 
         # Print out Parameters
         self.simulationParameterPrint.append("Population Size: " + str(populationSize) + "\tType: " + populationType)
