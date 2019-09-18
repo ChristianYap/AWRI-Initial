@@ -252,7 +252,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     # Increment Counter:
                     firstPassMarkedFishes += 1
 
-            self.simulationParameterPrint.append('Fishes caught during first pass: ' + str(firstPassMarkedFishes))
+            # self.simulationParameterPrint.append('Fishes caught during first pass: ' + str(firstPassMarkedFishes))
 
             # ################################ START SECOND PASS ################################################# #
 
@@ -279,19 +279,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             simulationResults.append(estimatedSampleSizeN)
             arrayResult = np.array(simulationResults)
 
+        self.simulationParameterPrint.append('Mean Population estimation: ' + str(arrayResult.mean()))
+        # Print out Parameters
+        self.simulationParameterPrint.append("Population Size: " + str(populationSize) + "\tType: " + populationType)
+        self.simulationParameterPrint.append("Capture Probability: q = " + str(captureProbabilityFish) + "\tType: "
+                                             + captureProbabilityType)
+        self.simulationParameterPrint.append(tagLossType + "\t\tSubreach Type: " + subReachType)
+        self.simulationParameterPrint.append("Number of Trials: " + str(numTrials))
+
 
         # Graph
         # count number in each bin
         bins = np.linspace(min(simulationResults), max(simulationResults))
         hist, _ = np.histogram(simulationResults, bins)
 
-        # np.random.seed(1000)
-        # np_hist = [0, 1, 2, 3]
-        # np_hist = np.random.normal(loc=0, scale=1, size=1000)
-        # np_hist[:10]
-        # np_hist.mean(), np_hist.std()
-        # hist, bin_edges = np.histogram(np_hist)
-        # bin_edges = np.round(bin_edges, 0)
         plt.figure(figsize=[10, 8])
         # plt.bar(bin_edges[:-1], hist, width=0.5, color='#0504aa', alpha=0.7)
         plt.bar(bins[:-1], hist, label=str(populationSize) + ' samples', width=1)
@@ -335,13 +336,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # Simulate and plot
         self.simulateAndPlot()
-
-        # Print out Parameters
-        self.simulationParameterPrint.append("Population Size: " + str(populationSize) + "\tType: " + populationType)
-        self.simulationParameterPrint.append("Capture Probability: q = " + str(captureProbabilityFish) + "\tType: "
-                                             + captureProbabilityType)
-        self.simulationParameterPrint.append(tagLossType + "\t\tSubreach Type: " + subReachType)
-        self.simulationParameterPrint.append("Number of Trials: " + str(numTrials))
 
 
 #################################################################################
