@@ -6,6 +6,7 @@
 
 class Fish:
     captureProbQ: float
+    captureProbQTwo: float
     tagged: int
     tagLoss: float
     subReachPos: int
@@ -25,6 +26,7 @@ class Fish:
     def __init__(self, captureProbQ: float, tagged: int, tagLoss: float, subReachPos: int, mortality: int,
                  enterExit: int):
         self.captureProbQ = captureProbQ
+        self.captureProbQTwo = -1
         self.tagged = tagged
         self.tagLoss = tagLoss
         self.subReachPos = subReachPos
@@ -35,14 +37,14 @@ class Fish:
     #################################################################################
     # SETTER FOR FISH TAGGING
     #################################################################################
-    def SetCaptureProbability(self, fish):
-        self.fishData.append(fish)
+    def SetCaptureProbability(self, captureProbQ):
+        self.captureProbQ = captureProbQ
 
     #################################################################################
     # SETTER FOR FISH TAGGING
     #################################################################################
-    def SetCaptureProbability(self, captureProbQ):
-        self.captureProbQ = captureProbQ
+    def SetCaptureProbabilityTwo(self, captureProbQTwo):
+        self.captureProbQTwo = captureProbQTwo
 
     #################################################################################
     # SETTER FOR FISH TAGGING
@@ -75,10 +77,16 @@ class Fish:
         self.mortality = mortality
 
     #################################################################################
-    # GETTER FOR FISH TAGGING
+    # GETTER FOR FISH  Q 1
     #################################################################################
     def GetCaptureProbability(self):
         return self.captureProbQ
+
+    #################################################################################
+    # GETTER FOR FISH Q 2
+    #################################################################################
+    def GetCaptureProbabilityTwo(self):
+        return self.captureProbQTwo
 
     #################################################################################
     # GETTER FOR FISH TAGGING
@@ -109,4 +117,10 @@ class Fish:
     #################################################################################
     def GetMortality(self):
         return self.mortality
+
+    #################################################################################
+    # Get whether fish is entering or leaving or staying.
+    #################################################################################
+    def GetEnterExitMode(self):
+        return self.enterExit
 

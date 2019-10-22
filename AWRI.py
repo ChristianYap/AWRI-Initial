@@ -77,6 +77,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # Connections for the button click
     #################################################################################
     def Connections(self):
+
         self.estimatePopulationButton.clicked.connect(self.EstimatePopulationChapman)
         self.runSimulationButton.clicked.connect(self.simulateFishes)
 
@@ -94,6 +95,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.checkBoxTagLoss.stateChanged.connect(self.CheckBoxTagLossOption)
 
         # Refresh Results Button
+        self.tableRawTestData.doubleClicked.connect(self.DisplayFishData)
         self.refreshResultsButton.clicked.connect(self.RefreshResults)
 
         # Save Results Button
@@ -143,22 +145,69 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # Refresh results button
     #################################################################################
     def RefreshResults(self):
-        # test
-        inputNumber = self.loadSimulationNumberInput.value() - 1
-        template = simulationSaves[0]
 
-        # View Simulation Parameters
+        # Clear tables:
+        self.tableRawTestData.setRowCount(0)
+        self.tableRawFishData.setRowCount(0)
+
+        inputNumber = self.loadSimulationNumberInput.value() - 1
+        template = simulationSaves[inputNumber]
+
+        # View Simulation Parameters:
+        self.simulationReviewer.clear()
         self.simulationReviewer.append('Mean Population estimated: ' + str(template.GetOverallEstimatedPopulation()))
         self.simulationReviewer.append('Actual Population size: ' + str(template.GetActualEstimatedPopulation()))
         self.simulationReviewer.append('Number of Trials:' + str(template.GetNumTrials()))
         self.simulationReviewer.append(template.GetParameters())
 
-        # View Trial Results
+        # View Trial Results:
+        testResults = simulationSaves[inputNumber].GetTestData()
 
-        # View Fish Data for each trial
+        # Create a empty row at bottom of table
+        for trials in range(0, len(testResults)):
+            numRows = self.tableRawTestData.rowCount()
+            self.tableRawTestData.insertRow(numRows)
+            self.tableRawTestData.setItem(numRows, 0, QTableWidgetItem(str('{number:.{digits}f}'.format(number=testResults[trials].GetEstimatedPopulation(), digits=4))))
+            self.tableRawTestData.setItem(numRows, 1, QTableWidgetItem(str(testResults[trials].GetFirstPassCaught())))
+            self.tableRawTestData.setItem(numRows, 2, QTableWidgetItem(str(testResults[trials].GetSecondPassCaught())))
+            self.tableRawTestData.setItem(numRows, 3, QTableWidgetItem(str(testResults[trials].GetSecondPassRecaught())))
 
-        # Graph
+    #################################################################################
+    # Lincoln Peterson Calculation
+    #################################################################################
+    def DisplayFishData(self):
 
+        # Clear table
+        self.tableRawFishData.setRowCount(0)
+
+        # test
+        inputNumber = self.loadSimulationNumberInput.value() - 1
+        template = simulationSaves[inputNumber]
+
+        # View Trial Results:
+        testResults = simulationSaves[inputNumber].GetTestData()
+
+        # Get row and column highlighted:
+        for idx in self.tableRawTestData.selectionModel().selectedIndexes():
+            rowNum = idx.row()
+
+
+        # Get fish data for that specific test:
+        fishData = testResults[rowNum].GetFishData()
+
+        # Show fish data:
+        for itr in range(0, len(fishData)):
+            numRows = self.tableRawFishData.rowCount()
+
+            self.tableRawFishData.insertRow(numRows)
+            self.tableRawFishData.setItem(numRows, 0, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishData[itr].GetCaptureProbability(), digits=4))))
+            self.tableRawFishData.setItem(numRows, 1, QTableWidgetItem(str(fishData[itr].GetSubReachPos())))
+            self.tableRawFishData.setItem(numRows, 2, QTableWidgetItem(str(fishData[itr].GetFishTag())))
+            self.tableRawFishData.setItem(numRows, 3, QTableWidgetItem(str(fishData[itr].GetTagLoss())))
+            self.tableRawFishData.setItem(numRows, 4, QTableWidgetItem(str(fishData[itr].GetMortality())))
+            self.tableRawFishData.setItem(numRows, 5, QTableWidgetItem(str(fishData[itr].GetEnterExitMode())))
+            self.tableRawFishData.setItem(numRows, 6, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishData[itr].GetCaptureProbabilityTwo(), digits=4))))
+            self.tableRawFishData.setItem(numRows, 7, QTableWidgetItem(str(fishData[itr].GetSubReachPosTwo())))
     #################################################################################
     # Lincoln Peterson Calculation
     #################################################################################
@@ -415,7 +464,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 for v in range(len(tagLossIndex)):
                     fishPopulation[v].SetTagLoss(tagLossValue[v])
                     if fishPopulation[v].tagLoss <= tagLossVar:
-                        fishPopulation[j].SetFishTag(0)
+                        fishPopulation[v].SetFishTag(0)
                         tagLossCounter += 1
 
             # ########################################### END BREAK ################################################# #
@@ -432,7 +481,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             # SECOND CAPTURE
             for k in range(len(qCatchValueTwo)):
-                fishPopulation[k].SetCaptureProbability(qCatchValueTwo[k])
+                fishPopulation[k].SetCaptureProbabilityTwo(qCatchValueTwo[k])
 
                 # Designate second location of the fish:
                 if self.checkBoxNormalSubreach.isChecked():
@@ -452,7 +501,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if self.checkBoxNoSubreach.isChecked():
                     # Do this first scenario if there is equal probability between the two samples:
                     if self.checkBoxCaptureEqual.isChecked():
-                        if fishPopulation[k].captureProbQ <= self.captureProbabilityInput.value():
+                        if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInput.value():
                             # Can't capture a dead fish:
                             if not fishPopulation[k].GetMortality() == 0:
                                 secondPassFishes += 1
@@ -460,7 +509,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                                     recapturedTaggedFish += 1
                     # Do this second scenario if sample two has different capture variability from first capture sample:
                     elif self.checkBoxCaptureVary.isChecked():
-                        if fishPopulation[k].captureProbQ <= self.captureProbabilityInputVaryTwo.value():
+                        if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInputVaryTwo.value():
                             # Can't capture a dead fish:
                             if not fishPopulation[k].GetMortality() == 0:
                                 secondPassFishes += 1
@@ -469,7 +518,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     # Do this third scenario if fish has random capture probability as well:
                     elif self.checkBoxCaptureRandomPerFish.isChecked():
                         randomCaptureProbabilityRoll = np.random.rand(1)
-                        if fishPopulation[k].captureProbQ <= randomCaptureProbabilityRoll[0]:
+                        if fishPopulation[k].captureProbQTwo <= randomCaptureProbabilityRoll[0]:
                             # Can't capture a dead fish:
                             if not fishPopulation[k].GetMortality() == 0:
                                 secondPassFishes += 1
@@ -482,7 +531,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                         # Check if it's in the sub reach in the first place:
                         if fishPopulation[k].GetSubReachPosTwo() == '1' or fishPopulation[k].GetSubReachPosTwo() == '2':
                             # Can we capture it?
-                            if fishPopulation[k].captureProbQ <= self.captureProbabilityInput.value():
+                            if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInput.value():
                                 secondPassFishes += 1
                                 if fishPopulation[k].tagged == 1:
                                     recapturedTaggedFish += 1
@@ -491,7 +540,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                         # Check if it's in the sub reach in the first place:
                         if fishPopulation[k].GetSubReachPosTwo() == '1' or fishPopulation[k].GetSubReachPosTwo() == '2':
                             # Can we capture it?
-                            if fishPopulation[k].captureProbQ <= self.captureProbabilityInputVaryTwo.value():
+                            if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInputVaryTwo.value():
                                 secondPassFishes += 1
                                 if fishPopulation[k].tagged == 1:
                                     recapturedTaggedFish += 1
@@ -501,7 +550,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                         if fishPopulation[k].GetSubReachPosTwo() == '1' or fishPopulation[k].GetSubReachPosTwo() == '2':
                             # Can we capture it?
                             randomCaptureProbabilityRoll = np.random.rand(1)
-                            if fishPopulation[k].captureProbQ <= randomCaptureProbabilityRoll[0]:
+                            if fishPopulation[k].captureProbQTwo <= randomCaptureProbabilityRoll[0]:
                                 secondPassFishes += 1
                                 if fishPopulation[k].tagged == 1:
                                     recapturedTaggedFish += 1
@@ -515,7 +564,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                                 fishPopulation[k].GetSubReachPosTwo() == '3' or fishPopulation[
                             k].GetSubReachPosTwo() == '4':
                             # Can we capture it?
-                            if fishPopulation[k].captureProbQ <= self.captureProbabilityInput.value():
+                            if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInput.value():
                                 secondPassFishes += 1
                                 if fishPopulation[k].tagged == 1:
                                     recapturedTaggedFish += 1
@@ -524,10 +573,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                         # Check if it's in the sub reach in the first place:
                         if fishPopulation[k].GetSubReachPosTwo() == '1' or fishPopulation[
                             k].GetSubReachPosTwo() == '2' or \
-                                fishPopulation[k].GetSubReachPosTwo() == '3' or fishPopulation[
-                            k].GetSubReachPosTwo() == '4':
+                                fishPopulation[k].GetSubReachPosTwo() == '3' or fishPopulation[k].GetSubReachPosTwo() == '4':
                             # Can we capture it?
-                            if fishPopulation[k].captureProbQ <= self.captureProbabilityInputVaryTwo.value():
+                            if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInputVaryTwo.value():
                                 secondPassFishes += 1
                                 if fishPopulation[k].tagged == 1:
                                     recapturedTaggedFish += 1
@@ -536,11 +584,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                         # Check if it's in the sub reach in the first place:
                         if fishPopulation[k].GetSubReachPosTwo() == '1' or fishPopulation[
                             k].GetSubReachPosTwo() == '2' or \
-                                fishPopulation[k].GetSubReachPosTwo() == '3' or fishPopulation[
-                            k].GetSubReachPosTwo() == '4':
+                                fishPopulation[k].GetSubReachPosTwo() == '3' or fishPopulation[k].GetSubReachPosTwo() == '4':
                             # Can we capture it?
                             randomCaptureProbabilityRoll = np.random.rand(1)
-                            if fishPopulation[k].captureProbQ <= randomCaptureProbabilityRoll[0]:
+                            if fishPopulation[k].captureProbQTwo <= randomCaptureProbabilityRoll[0]:
                                 secondPassFishes += 1
                                 if fishPopulation[k].tagged == 1:
                                     recapturedTaggedFish += 1
@@ -564,15 +611,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                                          recapturedTaggedFish, fishPopulation)
                 testResultsArray.insert(i, testResult)
 
-        # TODO: TEST FISH POPULATION THING IN TEST RESULTS1!!
-        x = testResult.GetFishData()
-        print(str(x[0].GetCaptureProbability()))
+        arrayResult = np.array(simulationResults)
 
         # Add the overall summary for this result to the saved array for all simulations
-        thisSimulation = SimulationParameters(numTrials, estimatedSampleSizeN, populationSize, testResultsArray)
+        thisSimulation = SimulationParameters(numTrials, arrayResult.mean(), populationSize, testResultsArray)
         thisSimulation.SetParameterString(populationType + "\n" + captureProbabilityString + "\n" \
                                           + captureProbabilityType + "\n" + tagLossType + "\n" + subReachType)
         simulationSaves.append(thisSimulation)
+
+        return arrayResult
 
     #################################################################################
     # Simulation and then plot histogram
@@ -583,11 +630,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         simulationResults = []
 
         self.simulationParameterPrint.clear()
-        self.simulate(simulationResults)
-        arrayResult = np.array(simulationResults)
-        # End for loop
-
-        self.simulationParameterPrint.append('Mean Population estimation: ' + str(arrayResult.mean()))
+        arrayResult = self.simulate(simulationResults)
+        self.simulationParameterPrint.append('Mean Population estimation: ' + str('{number:.{digits}f}'.format(number=arrayResult.mean(), digits=4)))
         # Print out Parameters
         self.simulationParameterPrint.append(
             "Actual Population Size: " + str(populationSize) + "\tType: " + populationType)
@@ -636,11 +680,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.getSubReachSizeParameter()
         # Get Number of Trials
         self.getNumTrials()
-        # Simulate and plot
-        self.simulateAndPlot()
         # Enable Save Button
         self.saveResultsButton.setEnabled(True)
         self.refreshResultsButton.setEnabled(True)
+        # Simulate and plot
+        self.simulateAndPlot()
 
 
 #################################################################################
