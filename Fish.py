@@ -13,12 +13,7 @@ class Fish:
     subReachPosTwo: int
     mortality: int
     enterExit: int
-
-    #################################################################################
-    # FISH CONSTRUCTOR
-    #################################################################################
-    def __init__(self):
-        self.fishData =[]
+    reCaught: ''
 
     #################################################################################
     # FISH CONSTRUCTOR
@@ -33,6 +28,7 @@ class Fish:
         self.subReachPosTwo = -1
         self.mortality = mortality
         self.enterExit = enterExit
+        self.reCaught = '-'
 
     #################################################################################
     # SETTER FOR FISH TAGGING
@@ -75,6 +71,12 @@ class Fish:
     #################################################################################
     def SetMortality(self, mortality):
         self.mortality = mortality
+
+    #################################################################################
+    # SETTER FOR RECAUGHT STATUS
+    #################################################################################
+    def SetRecaughtStat(self, reCaught):
+        self.reCaught = reCaught
 
     #################################################################################
     # GETTER FOR FISH  Q 1
@@ -124,3 +126,8 @@ class Fish:
     def GetEnterExitMode(self):
         return self.enterExit
 
+    #################################################################################
+    # GETTER FOR RECAUGHT STATUS
+    #################################################################################
+    def GetRecaughtStat(self):
+        return self.reCaught

@@ -77,7 +77,7 @@ class SimulationParameters:
     #################################################################################
     # GETTER FOR ACTUAL POPULATION
     #################################################################################
-    def GetActualEstimatedPopulation(self):
+    def GetActualPopulation(self):
         return self.actualPopulation
 
     #################################################################################
