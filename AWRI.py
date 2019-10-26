@@ -87,6 +87,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.runSimulationButton.clicked.connect(self.simulateFishes)
 
         # Toggle checkbox connections:
+
         # Population
         self.checkBoxClosedPopulation.stateChanged.connect(self.checkBoxPopulationOption)
         self.checkBoxOpenPopulation.stateChanged.connect(self.checkBoxPopulationOption)
@@ -106,7 +107,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.viewImageButton.clicked.connect(self.ViewImage)
 
         # Refresh Results Button
-        self.tableRawTestData.doubleClicked.connect(self.DisplayFishData)
+        self.tableRawTestData.clicked.connect(self.DisplayFishData)
+        self.tableRawFishData.doubleClicked.connect(self.DisplayAnalysisForColumn)
         self.refreshResultsButton.clicked.connect(self.RefreshResults)
         self.clearDataButton.clicked.connect(self.ClearSavedData)
 
@@ -132,7 +134,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.simulationReviewer.clear()
 
     #################################################################################
-    # Migration Rate Slider
+    # Migration Rate Slide
     #################################################################################
     def MigrationSlider(self):
         self.migrationRateBox.setValue(self.migrationRateSlider.value() / 100)
@@ -147,6 +149,45 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         elif self.checkBoxNormalSubreach.isChecked() or self.checkBoxExpandedSubreach.isChecked():
             self.subReachMovementOption.setEnabled(True)
             self.subReachMovementOption.setVisible(True)
+
+    #################################################################################
+    # Analyze spread for a column chosen in raw fish data table
+    #################################################################################
+    def DisplayAnalysisForColumn(self):
+
+        index = self.tableRawFishData.currentColumn()
+
+        # Get input number
+        inputNumber = int(self.loadSimulationNumberInput.currentText()) - 1
+
+        # View Trial Results:
+        testResults = simulationSaves[inputNumber].GetTestData()
+
+        # Get row and column highlighted:
+        for idx in self.tableRawTestData.selectionModel().selectedIndexes():
+            rowNum = idx.row()
+
+        # Get fish data for that specific test:
+        fishData = testResults[rowNum].GetFishData()
+        simulationResults = []
+        # Show fish data:
+        for itr in range(0, len(fishData)):
+            simulationResults.append(fishData[itr].GetCaptureProbability())
+        arrayResult = np.array(simulationResults)
+        print(arrayResult)
+        # An "interface" to matplotlib.axes.Axes.hist() method
+        n, bins, patches = plt.hist(x=arrayResult, bins='auto', color='#0504aa',
+                                    alpha=0.7, rwidth=0.85)
+        plt.grid(axis='y', alpha=0.75)
+        plt.xlabel('Value')
+        plt.ylabel('Frequency')
+        plt.title('Histogram')
+        plt.text(23, 45, r'$\mu=15, b=3$')
+        maxfreq = n.max()
+        # Set a clean upper y-axis limit.
+        plt.ylim(ymax=np.ceil(maxfreq / 10) * 10 if maxfreq % 10 else maxfreq + 10)
+        # plt.bar(np.arange(len(arrayResult)), arrayResult)
+        plt.show()
 
     #################################################################################
     # Save Results
@@ -244,7 +285,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         plt.axvline(template.GetOverallEstimatedPopulation(), color='r', lw=2, label=str('Simulation Mean'))
         plt.xlim(min(bins), max(bins))
         plt.grid(axis='y', alpha=0.75)
-        plt.xlabel('Population Estimate', fontsize=15)
+        plt.xlabel('Population Estimate\n Mean Population Estimation = ' + str('{number:.{digits}f}'.format(number=template.GetOverallEstimatedPopulation(), digits=2)), fontsize=15)
         plt.ylabel('Frequency', fontsize=15)
         plt.xticks(fontsize=15)
         plt.yticks(fontsize=15)
@@ -848,7 +889,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         plt.axvline(arrayResult.mean(), color='r', lw=2, label=str('Simulation Mean'))
         plt.xlim(min(bins), max(bins))
         plt.grid(axis='y', alpha=0.75)
-        plt.xlabel('Population Estimate', fontsize=15)
+        plt.xlabel('Population Estimate\n Mean Population Estimation = ' + str('{number:.{digits}f}'.format(number=arrayResult.mean(), digits=2)), fontsize=15)
         plt.ylabel('Frequency', fontsize=15)
         plt.xticks(fontsize=15)
         plt.yticks(fontsize=15)
