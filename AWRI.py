@@ -171,21 +171,75 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         fishData = testResults[rowNum].GetFishData()
         simulationResults = []
         # Show fish data:
-        for itr in range(0, len(fishData)):
-            simulationResults.append(fishData[itr].GetCaptureProbability())
+        if index == 0:
+            # CAPTURE PROB Q1
+            for itr in range(0, len(fishData)):
+                simulationResults.append(fishData[itr].GetCaptureProbability())
+        elif index == 1:
+            # subreach S1
+            for itr in range(0, len(fishData)):
+                simulationResults.append(fishData[itr].GetSubReachPos())
+        elif index == 2:
+            # Tagged
+            for itr in range(0, len(fishData)):
+                simulationResults.append(fishData[itr].GetFishTag())
+        elif index == 3:
+            # Tag Lost
+            for itr in range(0, len(fishData)):
+                simulationResults.append(fishData[itr].GetTagLoss())
+        elif index == 4:
+            # Mortality
+            for itr in range(0, len(fishData)):
+                simulationResults.append(fishData[itr].GetMortality())
+        elif index == 5:
+            # Enter stay exit
+            for itr in range(0, len(fishData)):
+                simulationResults.append(fishData[itr].GetEnterExitMode())
+        elif index == 6:
+            # CAPTURE PROB Q2
+            for itr in range(0, len(fishData)):
+                simulationResults.append(fishData[itr].GetCaptureProbabilityTwo())
+        elif index == 7:
+            # FINAL Subreach S2
+            for itr in range(0, len(fishData)):
+                simulationResults.append(fishData[itr].GetSubReachPosTwo())
+
         arrayResult = np.array(simulationResults)
-        print(arrayResult)
-        # An "interface" to matplotlib.axes.Axes.hist() method
-        n, bins, patches = plt.hist(x=arrayResult, bins='auto', color='#0504aa',
-                                    alpha=0.7, rwidth=0.85)
+
+        n, bins, patches = plt.hist(x=arrayResult, bins='auto', color='#0504aa', alpha=0.7, rwidth=0.85)
         plt.grid(axis='y', alpha=0.75)
         plt.xlabel('Value')
         plt.ylabel('Frequency')
-        plt.title('Histogram')
+
+        if index == 0:
+            # CAPTURE PROB Q1
+            plt.title('Capture Probability Q1 (1st Pass)')
+        elif index == 1:
+            # subreach S1
+            plt.title('Subreach Position S1 (1st Pass)')
+        elif index == 2:
+            # Tagged
+            plt.title('Fishes Tagged')
+        elif index == 3:
+            # Tag Loss
+            plt.title('Tag Loss Spread')
+        elif index == 4:
+            # Mortality
+            plt.title('Mortality Spread')
+        elif index == 5:
+            # Enter stay exit
+            plt.title('Enter/Stay/Exit Spread')
+        elif index == 6:
+            # CAPTURE PROB Q2
+            plt.title('Capture Probability Q2 (2nd Pass)')
+        elif index == 7:
+            # FINAL Subreach S2
+            plt.title('Subreach Position 2 Spread')
+
         plt.text(23, 45, r'$\mu=15, b=3$')
-        maxfreq = n.max()
+        maxFreq = n.max()
         # Set a clean upper y-axis limit.
-        plt.ylim(ymax=np.ceil(maxfreq / 10) * 10 if maxfreq % 10 else maxfreq + 10)
+        plt.ylim(ymax=np.ceil(maxFreq / 10) * 10 if maxFreq % 10 else maxFreq + 10)
         # plt.bar(np.arange(len(arrayResult)), arrayResult)
         plt.show()
 
