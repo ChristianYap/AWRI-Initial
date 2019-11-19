@@ -8,7 +8,6 @@
 import sys
 import os
 import csv
-from itertools import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import QDate, QTime, QDateTime, Qt
 from MainWindow import Ui_MainWindow
@@ -17,6 +16,7 @@ import matplotlib.pyplot as plt
 from SimulationParameters import SimulationParameters
 from Fish import Fish
 from TestResults import TestResults
+from scipy.stats import beta
 
 # Global Variables
 REACH_SIZE = 100
@@ -170,7 +170,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         migrationBiasStatus = self.migrationRateDescription.text() + ': ' + str(migrationBiasVal)
 
-    #################################################################################
+        correction = self.migrationRateBox.value() - 0.5
+
+        # https://www.geeksforgeeks.org/scipy-stats-beta-python/
+        betaX = np.linspace(0, 1, 100)
+        y1 = beta.pdf(betaX, 2.75, 2.75)
+        plt.plot(betaX + correction, y1 * 40, "*")
+        plt.show()
+
+        #################################################################################
     # Migration Distance (0 - 100 - 200 % ) of subreach slide:
     #################################################################################
     def MigrationDistanceSlider(self):
@@ -939,13 +947,33 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                         fishPopulation[k].SetMortality(0)
 
                     # MOVEMENT:
-                    lowBoundMovementRange = fishPopulation[k].GetSubReachPos() - (REACH_SIZE * self.migrationDistanceBox.value())
+                    correction = self.migrationRateBox.value() - 0.5
                     highBoundMovementRange = fishPopulation[k].GetSubReachPos() + (REACH_SIZE * self.migrationDistanceBox.value())
-                    # todo: limit movement on fish population two. SET LOCATION LIMIT DISTRIBUTION.
-                    # todo: add bias upstream or downstream - beta or gamma distribution
+                    # https://www.geeksforgeeks.org/scipy-stats-beta-python/
+                    betaX = np.linspace(0, 1, 100)
+                    y1 = beta.pdf(betaX, 2.75, 2.75)
+                    # plt.plot(betaX + correction, y1 * highBoundMovementRange, "*")
+                    # plt.show()
+
+                    # lowBoundMovementRange = fishPopulation[k].GetSubReachPos() - (REACH_SIZE * self.migrationDistanceBox.value())
+                    # highBoundMovementRange = fishPopulation[k].GetSubReachPos() + (REACH_SIZE * self.migrationDistanceBox.value())
                     # Range size - 100 to 200, [-inf, 0) is out of bounds, [0, 100] is the study reach default, [101, to inf) is out of bounds
                     # First 1/3 of area: D (downstream),  Second 1/3 of area: C (central), Third 1/3 of area: U (upstream)
-                    fishPopulation[k].SetSubReachPosTwo(np.random.randint(lowBoundMovementRange, highBoundMovementRange))
+                    point = np.random.randint(0, len(betaX))
+                    if betaX[point] + correction < 0:
+                        if (y1[point] + highBoundMovementRange) > highBoundMovementRange:
+                            fishMove = highBoundMovementRange
+                            fishPopulation[k].SetSubReachPosTwo(fishPopulation[k].GetSubReachPos() - fishMove)
+                        else:
+                            fishMove = y1[point] + highBoundMovementRange
+                            fishPopulation[k].SetSubReachPosTwo(fishPopulation[k].GetSubReachPos() - fishMove)
+                    elif betaX[point] + correction >= 0:
+                        if(y1[point] + highBoundMovementRange) > highBoundMovementRange:
+                            fishMove = highBoundMovementRange
+                            fishPopulation[k].SetSubReachPosTwo(fishPopulation[k].GetSubReachPos() + fishMove)
+                        else:
+                            fishMove = y1[point] + highBoundMovementRange
+                            fishPopulation[k].SetSubReachPosTwo(fishPopulation[k].GetSubReachPos() + fishMove)
 
                     # First scenario: no sub reach parameter:
                     if self.checkBoxNoSubreach.isChecked():
