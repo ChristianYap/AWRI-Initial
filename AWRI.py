@@ -8,7 +8,7 @@
 import sys
 import os
 import csv
-import random
+from itertools import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import QDate, QTime, QDateTime, Qt
 from MainWindow import Ui_MainWindow
@@ -19,6 +19,7 @@ from Fish import Fish
 from TestResults import TestResults
 
 # Global Variables
+REACH_SIZE = 100
 simulationSaves = []
 
 
@@ -50,12 +51,22 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     #################################################################################
     def Presets(self):
         self.openPopulationMoralityInput.setVisible(False)
+
+        self.migrationDistanceBox.setVisible(False)
+        self.migrationDistanceSlider.setVisible(False)
+        self.migrationDistanceTitle.setVisible(False)
+        self.migrationRateDescription.setVisible(False)
         self.migrationRateBox.setVisible(False)
         self.migrationRateSlider.setVisible(False)
         self.migrationRateTitle.setVisible(False)
+
+        self.subReachMovementOption.setEnabled(False)
+        self.subReachMovementOption.setVisible(False)
+        self.subReachMovementOptionBox.setEnabled(False)
+        self.subReachMovementOptionBox.setVisible(False)
+
         self.mortalityProbabilityTitle.setVisible(False)
         self.saveResultsButton.setEnabled(False)
-        self.subReachMovementOption.setVisible(False)
         self.clearDataButton.setEnabled(False)
         self.loadSimulationNumberInput.setCurrentText('1')
 
@@ -75,8 +86,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # Group Three: Sub-reach Size
         self.subReachSizeOption.addButton(self.checkBoxNoSubreach, 1)
-        self.subReachSizeOption.addButton(self.checkBoxNormalSubreach, 2)
-        self.subReachSizeOption.addButton(self.checkBoxExpandedSubreach, 3)
+        self.subReachSizeOption.addButton(self.checkBoxVariedSubreach, 2)
 
     #################################################################################
     # Connections for the button click
@@ -94,6 +104,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # Slider
         self.migrationRateSlider.valueChanged.connect(self.MigrationSlider)
+        self.migrationDistanceSlider.valueChanged.connect(self.MigrationDistanceSlider)
+        self.subReachMovementOption.valueChanged.connect(self.SubreachSizeSlider)
 
         # Capture Probability
         self.checkBoxCaptureEqual.stateChanged.connect(self.checkBoxProbabilityOption)
@@ -114,8 +126,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # Subreach Options
         self.checkBoxNoSubreach.stateChanged.connect(self.SubReachOption)
-        self.checkBoxNormalSubreach.stateChanged.connect(self.SubReachOption)
-        self.checkBoxExpandedSubreach.stateChanged.connect(self.SubReachOption)
+        self.checkBoxVariedSubreach.stateChanged.connect(self.SubReachOption)
 
         # Save Results Button
         self.saveResultsButton.clicked.connect(self.SaveResults)
@@ -133,11 +144,42 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.tableRawFishData.setRowCount(0)
         self.simulationReviewer.clear()
 
+    def SubreachSizeSlider(self):
+        self.subReachMovementOptionBox.setValue(self.subReachMovementOption.value() / 100)
+
     #################################################################################
-    # Migration Rate Slide
+    # Migration Rate (SKEWED DOWNSTREAM, BALANCED, UPSTREAM) slide
     #################################################################################
     def MigrationSlider(self):
+        global migrationBiasVal
+        global migrationBiasStatus
+
         self.migrationRateBox.setValue(self.migrationRateSlider.value() / 100)
+        migrationBiasVal = self.migrationRateSlider.value() / 100
+
+        if self.migrationRateBox.value() <= 0.25:
+            self.migrationRateDescription.setText('Downstream Bias')
+        elif 0.25 <= self.migrationRateBox.value() <= 0.45:
+            self.migrationRateDescription.setText('Slight Downstream Bias')
+        elif self.migrationRateBox.value() == 0.5:
+            self.migrationRateDescription.setText('Balanced')
+        elif 0.55 <= self.migrationRateBox.value() < 0.75:
+            self.migrationRateDescription.setText('Slight Upstream Bias')
+        elif self.migrationRateBox.value() >= 0.75:
+            self.migrationRateDescription.setText('Upstream Bias')
+
+        migrationBiasStatus = self.migrationRateDescription.text() + ': ' + str(migrationBiasVal)
+
+    #################################################################################
+    # Migration Distance (0 - 100 - 200 % ) of subreach slide:
+    #################################################################################
+    def MigrationDistanceSlider(self):
+        global migrationDistVal
+        global migrationDistStatus
+
+        self.migrationDistanceBox.setValue(self.migrationDistanceSlider.value() / 100)
+        migrationDistVal = self.migrationDistanceSlider.value() / 100
+        migrationDistStatus = 'Migration Distance: ' + str(migrationDistVal)
 
     #################################################################################
     # Subreach Options
@@ -146,63 +188,63 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if self.checkBoxNoSubreach.isChecked():
             self.subReachMovementOption.setVisible(False)
             self.subReachMovementOption.setEnabled(False)
-        elif self.checkBoxNormalSubreach.isChecked() or self.checkBoxExpandedSubreach.isChecked():
+            self.subReachMovementOptionBox.setEnabled(False)
+            self.subReachMovementOptionBox.setVisible(False)
+        elif self.checkBoxVariedSubreach.isChecked():
             self.subReachMovementOption.setEnabled(True)
             self.subReachMovementOption.setVisible(True)
+            self.subReachMovementOptionBox.setEnabled(True)
+            self.subReachMovementOptionBox.setVisible(True)
 
     #################################################################################
-    # Analyze spread for a column chosen in raw fish data table
+    # Display Population Analysis
     #################################################################################
-    def DisplayAnalysisForColumn(self):
-
+    def DisplayPopulationAnalysis(self):
+        # Choose column to graph:
         index = self.tableRawFishData.currentColumn()
 
         # Get input number
         inputNumber = int(self.loadSimulationNumberInput.currentText()) - 1
-
         # View Trial Results:
         testResults = simulationSaves[inputNumber].GetTestData()
-
-        # Get row and column highlighted:
-        for idx in self.tableRawTestData.selectionModel().selectedIndexes():
-            rowNum = idx.row()
-
-        # Get fish data for that specific test:
-        fishData = testResults[rowNum].GetFishData()
         simulationResults = []
-        # Show fish data:
-        if index == 0:
-            # CAPTURE PROB Q1
-            for itr in range(0, len(fishData)):
-                simulationResults.append(fishData[itr].GetCaptureProbability())
-        elif index == 1:
-            # subreach S1
-            for itr in range(0, len(fishData)):
-                simulationResults.append(fishData[itr].GetSubReachPos())
-        elif index == 2:
-            # Tagged
-            for itr in range(0, len(fishData)):
-                simulationResults.append(fishData[itr].GetFishTag())
-        elif index == 3:
-            # Tag Lost
-            for itr in range(0, len(fishData)):
-                simulationResults.append(fishData[itr].GetTagLoss())
-        elif index == 4:
-            # Mortality
-            for itr in range(0, len(fishData)):
-                simulationResults.append(fishData[itr].GetMortality())
-        elif index == 5:
-            # Enter stay exit
-            for itr in range(0, len(fishData)):
-                simulationResults.append(fishData[itr].GetEnterExitMode())
-        elif index == 6:
-            # CAPTURE PROB Q2
-            for itr in range(0, len(fishData)):
-                simulationResults.append(fishData[itr].GetCaptureProbabilityTwo())
-        elif index == 7:
-            # FINAL Subreach S2
-            for itr in range(0, len(fishData)):
-                simulationResults.append(fishData[itr].GetSubReachPosTwo())
+        # Get row and column highlighted:
+        for idx in range(self.tableRawTestData.rowCount()):
+            # Get fish data for that specific test:
+            fishData = testResults[idx].GetFishData()
+            # Show fish data:
+            if index == 0:
+                # CAPTURE PROB Q1
+                for itr in range(0, len(fishData)):
+                    simulationResults.append(fishData[itr].GetCaptureProbability())
+            elif index == 1:
+                # Sub reach S1
+                for itr in range(0, len(fishData)):
+                    simulationResults.append(fishData[itr].GetSubReachPos())
+            elif index == 2:
+                # Tagged
+                for itr in range(0, len(fishData)):
+                    simulationResults.append(fishData[itr].GetFishTag())
+            elif index == 3:
+                # Tag Lost
+                for itr in range(0, len(fishData)):
+                    simulationResults.append(fishData[itr].GetTagLoss())
+            elif index == 4:
+                # Mortality
+                for itr in range(0, len(fishData)):
+                    simulationResults.append(fishData[itr].GetMortality())
+            elif index == 5:
+                # Enter stay exit
+                for itr in range(0, len(fishData)):
+                    simulationResults.append(fishData[itr].GetMigrationDistance())
+            elif index == 6:
+                # CAPTURE PROB Q2
+                for itr in range(0, len(fishData)):
+                    simulationResults.append(fishData[itr].GetCaptureProbabilityTwo())
+            elif index == 7:
+                # FINAL Subreach S2
+                for itr in range(0, len(fishData)):
+                    simulationResults.append(fishData[itr].GetSubReachPosTwo())
 
         arrayResult = np.array(simulationResults)
 
@@ -228,7 +270,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             plt.title('Mortality Spread')
         elif index == 5:
             # Enter stay exit
-            plt.title('Enter/Stay/Exit Spread')
+            plt.title('Migration Distance Spread')
         elif index == 6:
             # CAPTURE PROB Q2
             plt.title('Capture Probability Q2 (2nd Pass)')
@@ -242,6 +284,104 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         plt.ylim(ymax=np.ceil(maxFreq / 10) * 10 if maxFreq % 10 else maxFreq + 10)
         # plt.bar(np.arange(len(arrayResult)), arrayResult)
         plt.show()
+
+    #################################################################################
+    # Analyze spread for a column chosen in raw fish data table
+    #################################################################################
+    def DisplayAnalysisForColumn(self):
+
+        if self.populationGraphCheckBox.isChecked():
+            plt.close()
+            self.DisplayPopulationAnalysis()
+        else:
+            plt.close()
+            index = self.tableRawFishData.currentColumn()
+
+            # Get input number
+            inputNumber = int(self.loadSimulationNumberInput.currentText()) - 1
+
+            # View Trial Results:
+            testResults = simulationSaves[inputNumber].GetTestData()
+
+            # Get row and column highlighted:
+            for idx in self.tableRawTestData.selectionModel().selectedIndexes():
+                rowNum = idx.row()
+
+            # Get fish data for that specific test:
+            fishData = testResults[rowNum].GetFishData()
+            simulationResults = []
+            # Show fish data:
+            if index == 0:
+                # CAPTURE PROB Q1
+                for itr in range(0, len(fishData)):
+                    simulationResults.append(fishData[itr].GetCaptureProbability())
+            elif index == 1:
+                # subreach S1
+                for itr in range(0, len(fishData)):
+                    simulationResults.append(fishData[itr].GetSubReachPos())
+            elif index == 2:
+                # Tagged
+                for itr in range(0, len(fishData)):
+                    simulationResults.append(fishData[itr].GetFishTag())
+            elif index == 3:
+                # Tag Lost
+                for itr in range(0, len(fishData)):
+                    simulationResults.append(fishData[itr].GetTagLoss())
+            elif index == 4:
+                # Mortality
+                for itr in range(0, len(fishData)):
+                    simulationResults.append(fishData[itr].GetMortality())
+            elif index == 5:
+                # Enter stay exit
+                for itr in range(0, len(fishData)):
+                    simulationResults.append(fishData[itr].GetMigrationDistance())
+            elif index == 6:
+                # CAPTURE PROB Q2
+                for itr in range(0, len(fishData)):
+                    simulationResults.append(fishData[itr].GetCaptureProbabilityTwo())
+            elif index == 7:
+                # FINAL Subreach S2
+                for itr in range(0, len(fishData)):
+                    simulationResults.append(fishData[itr].GetSubReachPosTwo())
+
+            arrayResult = np.array(simulationResults)
+
+            n, bins, patches = plt.hist(x=arrayResult, bins='auto', color='#0504aa', alpha=0.7, rwidth=0.85)
+            plt.grid(axis='y', alpha=0.75)
+            plt.xlabel('Value')
+            plt.ylabel('Frequency')
+
+            if index == 0:
+                # CAPTURE PROB Q1
+                plt.title('Capture Probability Q1 (1st Pass)')
+            elif index == 1:
+                # subreach S1
+                plt.title('Subreach Position S1 (1st Pass)')
+            elif index == 2:
+                # Tagged
+                plt.title('Fishes Tagged')
+            elif index == 3:
+                # Tag Loss
+                plt.title('Tag Loss Spread')
+            elif index == 4:
+                # Mortality
+                plt.title('Mortality Spread')
+            elif index == 5:
+                # Enter stay exit
+                plt.title('Migration Distance Spread')
+            elif index == 6:
+                # CAPTURE PROB Q2
+                plt.title('Capture Probability Q2 (2nd Pass)')
+            elif index == 7:
+                # FINAL Subreach S2
+                plt.title('Subreach Position 2 Spread')
+
+            plt.text(23, 45, r'$\mu=15, b=3$')
+            maxFreq = n.max()
+            # Set a clean upper y-axis limit.
+            plt.ylim(ymax=np.ceil(maxFreq / 10) * 10 if maxFreq % 10 else maxFreq + 10)
+            # plt.bar(np.arange(len(arrayResult)), arrayResult)
+            plt.show()
 
     #################################################################################
     # Save Results
@@ -277,19 +417,33 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if self.checkBoxClosedPopulation.isChecked():
             self.openPopulationMoralityInput.setVisible(False)
             self.mortalityProbabilityTitle.setVisible(False)
+
+            self.migrationDistanceBox.setVisible(False)
+            self.migrationDistanceSlider.setVisible(False)
+            self.migrationDistanceTitle.setVisible(False)
+            self.migrationRateDescription.setVisible(False)
+
             self.migrationRateBox.setVisible(False)
             self.migrationRateSlider.setVisible(False)
             self.migrationRateTitle.setVisible(False)
+
             self.checkBoxNoSubreach.setEnabled(True)
             self.checkBoxNoSubreach.setChecked(True)
         else:
             self.openPopulationMoralityInput.setVisible(True)
             self.mortalityProbabilityTitle.setVisible(True)
+
+            self.migrationDistanceBox.setVisible(True)
+            self.migrationDistanceSlider.setVisible(True)
+            self.migrationDistanceTitle.setVisible(True)
+            self.migrationRateDescription.setVisible(True)
+
             self.migrationRateBox.setVisible(True)
             self.migrationRateSlider.setVisible(True)
             self.migrationRateTitle.setVisible(True)
             self.checkBoxNoSubreach.setEnabled(False)
-            self.checkBoxNormalSubreach.setChecked(True)
+
+            self.checkBoxVariedSubreach.setChecked(True)
 
     #################################################################################
     # Capture Probability Options
@@ -426,7 +580,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.tableRawFishData.setItem(numRows, 2, QTableWidgetItem(str(fishData[itr].GetFishTag())))
             self.tableRawFishData.setItem(numRows, 3, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishData[itr].GetTagLoss(), digits=4))))
             self.tableRawFishData.setItem(numRows, 4, QTableWidgetItem(str(fishData[itr].GetMortality())))
-            self.tableRawFishData.setItem(numRows, 5, QTableWidgetItem(str(fishData[itr].GetEnterExitMode())))
+            self.tableRawFishData.setItem(numRows, 5, QTableWidgetItem(str(fishData[itr].GetMigrationDistance())))
             self.tableRawFishData.setItem(numRows, 6, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishData[itr].GetCaptureProbabilityTwo(), digits=4))))
             self.tableRawFishData.setItem(numRows, 7, QTableWidgetItem(str(fishData[itr].GetSubReachPosTwo())))
             self.tableRawFishData.setItem(numRows, 8, QTableWidgetItem(str(fishData[itr].GetRecaughtStat())))
@@ -482,12 +636,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def getPopulationParameter(self):
         global populationSize
         global populationType
+        global migrationString
+
         if self.checkBoxClosedPopulation.isChecked():
             populationSize = self.totalPopulationInput.value()
             populationType = "Closed Population"
+            migrationString = "Migration Distance/Rate: None"
         elif self.checkBoxOpenPopulation.isChecked():
             populationSize = self.totalPopulationInput.value()
             populationType = "Open Population"
+            self.MigrationSlider()
+            self.MigrationDistanceSlider()
+            migrationString = migrationBiasStatus + migrationDistStatus
 
     #################################################################################
     # Get Capture Probability for the fishes and/or the sample
@@ -536,19 +696,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # SubReach Type
         if self.checkBoxNoSubreach.isChecked():
             # All fishes are fair game to get caught
-            subReachSize = 0
             subReachType = "No Subreach Parameter"
-        elif self.checkBoxNormalSubreach.isChecked():
-            # Divided into 4 (0 to 3) Subreach zones, fishes in Zone 1 and 2 can be caught:
-            subReachSize = 2
-            subReachType = "Normal Subreach Size"
-        elif self.checkBoxExpandedSubreach.isChecked():
-            # Divided into 6 (0 to 5) Subreach zones, fishes in zone 1,2,3 can be caught:
-            subReachSize = 4
-            subReachType = "Expanded Subreach Size"
-
-        if self.subReachMovementOption.isChecked():
-            subReachType += "(Limited Movement)"
+        elif self.checkBoxVariedSubreach.isChecked():
+            subReachType = "Varied Subreach Size"
 
     #################################################################################
     # Get SubReach Parameter and see if it is normal sized or extended.
@@ -573,6 +723,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # https://stackoverflow.com/questions/47012474/bernoulli-random-number-generator
         # https://stackoverflow.com/questions/22744577/plotting-basic-uniform-distribution-on-python
 
+    def SetSubReachBoundary(self):
+        global lowerBoundStudyReach
+        global upperBoundStudyReach
+
+        size = (REACH_SIZE * self.subReachMovementOptionBox.value())
+        lowerBoundStudyReach = (REACH_SIZE / 2) - (size/2)
+        upperBoundStudyReach = (REACH_SIZE / 2) + (size/2)
+
     #################################################################################
     # Simulate Fishes
     #################################################################################
@@ -581,19 +739,28 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # Be able to save data for each simulation:
         for i in range(0, numTrials):
             # Generate random numbers for capture probability:
-            qCatchValue = np.random.rand(populationSize)
+            if self.checkBoxClosedPopulation.isChecked():
+                qCatchValue = np.random.rand(populationSize)
+            elif self.checkBoxOpenPopulation.isChecked():
+                qCatchValue = np.random.rand(populationSize*3)
             tagLossIndex = []
+            fishLocation = []
 
-            # Generate random number for location:
-            # FIX DO ARRAY INSTEAD. Designate first locations of the fish:
-            if self.checkBoxNormalSubreach.isChecked():
-                # 0 to 2, inclusive. 1 is where fish is catchable
-                fishLocation = [np.random.randint(0, 2) for p in range(0, populationSize)]
-                fishLocationTwo = [np.random.randint(0, 2) for p in range(0, populationSize)]
-            elif self.checkBoxExpandedSubreach.isChecked():
-                # Fishes in range 0 and 4 are out of reach. 1, 2, and 3 are where fish is catchable.
-                fishLocation = [np.random.randint(0, 4) for p in range(0, populationSize)]
-                fishLocationTwo = [np.random.randint(0, 4) for p in range(0, populationSize)]
+            # For Open Population, do three areas:
+            if self.checkBoxOpenPopulation.isChecked():
+                # Range size - 100 to 200, [-inf, 0) is out of bounds, [0, 100] is the study reach default, [101, to inf) is out of bounds
+                # First 1/3 of area: D (downstream),  Second 1/3 of area: C (central), Third 1/3 of area: U (upstream)
+                fishLocation.extend(np.random.randint(-REACH_SIZE, 1, populationSize))
+                fishLocation.extend(np.random.randint(1, REACH_SIZE + 1,  populationSize))
+                fishLocation.extend(np.random.randint(REACH_SIZE + 1, REACH_SIZE * 2, populationSize))
+            # Else we do one whole study reach:
+            else:
+                # Range size: 0 to 100
+                fishLocation = [np.random.randint(0, REACH_SIZE + 1) for p in range(0, populationSize)]
+                # Set initial location of fish:
+
+            # Get lower and upper bounds
+            self.SetSubReachBoundary()
 
             # ####################### Create fish structure, generate characteristics for each fish ############### #
             for m in range(len(qCatchValue)):
@@ -606,20 +773,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     fishPopulation.insert(m, fish)
                     # print(str(fishPopulation[i].captureProbQ))
 
-                # FIX DO ARRAY INSTEAD. Designate first locations of the fish:
-                if self.checkBoxNormalSubreach.isChecked():
-                    # Fishes in range 0 and 2 are out of reach.
-                    fishPopulation[m].SetSubReachPos(fishLocation[m])
-                elif self.checkBoxExpandedSubreach.isChecked():
-                    # Fishes in range 0 and 5 are out of reach.
-                    fishPopulation[m].SetSubReachPos(fishLocation[m])
+                # Set location of the fish:
+                fishPopulation[m].SetSubReachPos(fishLocation[m])
 
             # ################################START THE FIRST PASS ################################################# #
-
             firstPassMarkedFishes = 0
             # First set of fish population marked.
             for j in range(len(qCatchValue)):
-                # ############################# If subreach is not a factor: ############################# #
+                # ############################# If sub reach is not a factor: ############################# #
                 if self.checkBoxNoSubreach.isChecked():
                     # Do the first scenario if there is equal or varying probability between samples:
                     if self.checkBoxCaptureVary.isChecked() or self.checkBoxCaptureEqual.isChecked():
@@ -640,12 +801,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                             firstPassMarkedFishes += 1
                     # End this scenario
                 # ############################# End the no sub reach parameter ############################# #
-                # If sub reach is normal, meaning 4 zones, Zone 0 and 3 are out of bounds. 1 and 2 are catachable.
-                elif self.checkBoxNormalSubreach.isChecked():
+                # If sub reach is a factor, catch only those in study
+                elif self.checkBoxVariedSubreach.isChecked():
                     # Do the first scenario if there is equal or varying probability between samples:
                     if self.checkBoxCaptureVary.isChecked() or self.checkBoxCaptureEqual.isChecked():
-                        # Capture only if the fish is in the subreach (zone 1):
-                        if fishPopulation[j].GetSubReachPos() == 1:
+                        # Capture only if the fish is in the range:
+                        if lowerBoundStudyReach <= fishPopulation[j].GetSubReachPos() <= upperBoundStudyReach:
                             if fishPopulation[j].captureProbQ <= self.captureProbabilityInput.value():
                                 # Tag the fish
                                 fishPopulation[j].SetFishTag(1)
@@ -655,7 +816,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     # Do this scenario if each fish has a random probability of getting captured:
                     elif self.checkBoxCaptureRandomPerFish.isChecked():
                         randomCaptureProbabilityRoll = np.random.rand(1)
-                        if fishPopulation[j].GetSubReachPos() == 1:
+                        if lowerBoundStudyReach <= fishPopulation[j].GetSubReachPos() <= upperBoundStudyReach:
                             if fishPopulation[j].captureProbQ <= randomCaptureProbabilityRoll[0]:
                                 # Tag the fish
                                 fishPopulation[j].SetFishTag(1)
@@ -664,35 +825,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                                 firstPassMarkedFishes += 1
                     # End this scenario
                 # End the normal sub reach parameter
-                # If sub reach is extended, meaning 5 zones, Zone 0 and 4 are out of bounds 1, 2, 3 are catchachable.
-                elif self.checkBoxExpandedSubreach.isChecked():
-                    # Do the first scenario if there is equal or varying probability between samples:
-                    if self.checkBoxCaptureVary.isChecked() or self.checkBoxCaptureEqual.isChecked():
-                        # Capture only if the fish is in the subreach (zone 1, 2, 3, 4):
-                        if fishPopulation[j].GetSubReachPos() == 1 or fishPopulation[j].GetSubReachPos() == 2 or \
-                                fishPopulation[j].GetSubReachPos() == 3:
-                            # Let's try to capture the fish
-                            if fishPopulation[j].captureProbQ <= self.captureProbabilityInput.value():
-                                # Tag the fish
-                                fishPopulation[j].SetFishTag(1)
-                                tagLossIndex.append(j)
-                                # Increment Counter:
-                                firstPassMarkedFishes += 1
-                    # Do this scenario if each fish has a random probability of getting captured:
-                    elif self.checkBoxCaptureRandomPerFish.isChecked():
-                        randomCaptureProbabilityRoll = np.random.rand(1)
-                        if fishPopulation[j].GetSubReachPos() == 1 or fishPopulation[j].GetSubReachPos() == 2 or \
-                                fishPopulation[j].GetSubReachPos() == 3:
-                            # Let's try to capture the fish
-                            if fishPopulation[j].captureProbQ <= randomCaptureProbabilityRoll[0]:
-                                # Tag the fish
-                                fishPopulation[j].SetFishTag(1)
-                                tagLossIndex.append(j)
-                                # Increment Counter:
-                                firstPassMarkedFishes += 1
-                    # End this scenario
-                # End the extended reach parameter
-
             # ############################################## BREAK ################################################# #
             # Tag loss scenario:
             tagLossCounter = 0
@@ -709,179 +841,181 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # self.simulationParameterPrint.append('Fishes caught during first pass: ' + str(firstPassMarkedFishes))
             # ################################ START SECOND PASS ################################################# #
             # Create new catch values
-            qCatchValueTwo = np.random.rand(populationSize)
-            fishDeath = np.random.rand(populationSize)
+            # Generate random numbers for capture probability:
+            if self.checkBoxClosedPopulation.isChecked():
+                qCatchValueTwo = np.random.rand(populationSize)
+                fishDeath = np.random.rand(populationSize)
+            elif self.checkBoxOpenPopulation.isChecked():
+                qCatchValueTwo = np.random.rand(populationSize*3)
+                fishDeath = np.random.rand(populationSize*3)
 
             # Declare variables
             secondPassFishes = 0
             recapturedTaggedFish = 0
 
-            # SECOND CAPTURE
+            # #################################### START SECOND CAPTURE ################################################# #
             for k in range(len(qCatchValueTwo)):
                 fishPopulation[k].SetCaptureProbabilityTwo(qCatchValueTwo[k])
 
-                # Designate second location of the fish:
-
-                # Closed population - Location: remains the same as first location if it's a closed population:
+                # CLOSED POPULATION:
                 if self.checkBoxClosedPopulation.isChecked():
-                    fishPopulation[k].SetSubReachPosTwo(fishPopulation[k].GetSubReachPos())
+                    # First scenario: no sub reach parameter:
+                    if self.checkBoxNoSubreach.isChecked():
+                        # Do this first scenario if there is equal probability between the two samples:
+                        if self.checkBoxCaptureEqual.isChecked():
+                            if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInput.value():
+                                # Can't capture a dead fish:
+                                if not fishPopulation[k].GetMortality() == 0:
+                                    secondPassFishes += 1
+                                    fishPopulation[k].SetRecaughtStat('NO TAG')
+                                    if fishPopulation[k].tagged == 1:
+                                        recapturedTaggedFish += 1
+                                        fishPopulation[k].SetRecaughtStat('YES')
+                        # Do this second scenario if sample two has different capture variability from first capture sample:
+                        elif self.checkBoxCaptureVary.isChecked():
+                            if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInputVaryTwo.value():
+                                # Can't capture a dead fish:
+                                if not fishPopulation[k].GetMortality() == 0:
+                                    secondPassFishes += 1
+                                    fishPopulation[k].SetRecaughtStat('NO TAG')
+                                    if fishPopulation[k].tagged == 1:
+                                        recapturedTaggedFish += 1
+                                        fishPopulation[k].SetRecaughtStat('YES')
+                        # Do this third scenario if fish has random capture probability as well:
+                        elif self.checkBoxCaptureRandomPerFish.isChecked():
+                            randomCaptureProbabilityRoll = np.random.rand(1)
+                            if fishPopulation[k].captureProbQTwo <= randomCaptureProbabilityRoll[0]:
+                                # Can't capture a dead fish:
+                                if not fishPopulation[k].GetMortality() == 0:
+                                    secondPassFishes += 1
+                                    fishPopulation[k].SetRecaughtStat('NO TAG')
+                                    if fishPopulation[k].tagged == 1:
+                                        recapturedTaggedFish += 1
+                                        fishPopulation[k].SetRecaughtStat('YES')
+                    # Second scenario: varied sub reach parameter:
+                    elif self.checkBoxVariedSubreach.isChecked():
+                        # Do this first scenario if there is equal probability between the two samples:
+                        if self.checkBoxCaptureEqual.isChecked():
+                            # Check if it's in the sub reach in the first place, we use initial position as there is no
+                            # immigration or emigration
+                            if lowerBoundStudyReach <= fishPopulation[j].GetSubReachPos() <= upperBoundStudyReach:
+                                # Can we capture it?
+                                if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInput.value():
+                                    secondPassFishes += 1
+                                    fishPopulation[k].SetRecaughtStat('NO TAG')
+                                    if fishPopulation[k].tagged == 1:
+                                        recapturedTaggedFish += 1
+                                        fishPopulation[k].SetRecaughtStat('YES')
+                        # Do this second scenario if sample two has different capture variability from first capture sample:
+                        elif self.checkBoxCaptureVary.isChecked():
+                            # Check if it's in the sub reach in the first place:
+                            if lowerBoundStudyReach <= fishPopulation[j].GetSubReachPos() <= upperBoundStudyReach:
+                                # Can we capture it?
+                                if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInputVaryTwo.value():
+                                    secondPassFishes += 1
+                                    fishPopulation[k].SetRecaughtStat('NO TAG')
+                                    if fishPopulation[k].tagged == 1:
+                                        recapturedTaggedFish += 1
+                                        fishPopulation[k].SetRecaughtStat('YES')
+                        # Do this third scenario if fish has random capture probability as well:
+                        elif self.checkBoxCaptureRandomPerFish.isChecked():
+                            # Check if it's in the sub reach in the first place:
+                            if lowerBoundStudyReach <= fishPopulation[j].GetSubReachPos() <= upperBoundStudyReach:
+                                # Can we capture it?
+                                randomCaptureProbabilityRoll = np.random.rand(1)
+                                if fishPopulation[k].captureProbQTwo <= randomCaptureProbabilityRoll[0]:
+                                    secondPassFishes += 1
+                                    fishPopulation[k].SetRecaughtStat('NO TAG')
+                                    if fishPopulation[k].tagged == 1:
+                                        recapturedTaggedFish += 1
+                                        fishPopulation[k].SetRecaughtStat('YES')
 
-                # Open population - Location: will vary...
-                if self.checkBoxOpenPopulation.isChecked():
-                    if self.checkBoxNormalSubreach.isChecked():
-                        # Fishes in range 0 and 3 are out of reach.
-                        if not self.subReachMovementOption.isChecked():
-                            # Fish can go anywhere:
-                            fishPopulation[k].SetSubReachPosTwo(fishLocationTwo[k])
-                        elif self.subReachMovementOption.isChecked():
-                            # Fish is limited to adjacent zone/sector
-                            # Fishes in Zone 0 (currently out of bounds for study reach)
-                            if fishPopulation[k].GetSubReachPos() == 0:
-                                fishPopulation[k].SetSubReachPosTwo(random.randrange(0, 2))
-                            # Fishes in Zone 1
-                            if fishPopulation[k].GetSubReachPos() == 1:
-                                fishPopulation[k].SetSubReachPosTwo(random.randrange(0, 3))
-                            # Fishes in Zone 2
-                            if fishPopulation[k].GetSubReachPos() == 2:
-                                fishPopulation[k].SetSubReachPosTwo(random.randrange(1, 3))
-                    elif self.checkBoxExpandedSubreach.isChecked():
-                        # Fishes in range 0 and 5 are out of reach.
-                        if not self.subReachMovementOption.isChecked():
-                            # Fishes can go anywhere:
-                            fishPopulation[k].SetSubReachPosTwo(fishLocationTwo[k])
-                        elif self.subReachMovementOption.isChecked():
-                            # Fish is limited to adjacent zone/sector
-                            # Fishes in Zone 0 (currently out of bounds for study reach)
-                            if fishPopulation[k].GetSubReachPos() == 0:
-                                fishPopulation[k].SetSubReachPosTwo(random.randrange(0, 2))
-                            # Fishes in Zone 1
-                            if fishPopulation[k].GetSubReachPos() == 1:
-                                fishPopulation[k].SetSubReachPosTwo(random.randrange(0, 3))
-                            # Fishes in Zone 2
-                            if fishPopulation[k].GetSubReachPos() == 2:
-                                fishPopulation[k].SetSubReachPosTwo(random.randrange(1, 4))
-                            # Fishes in Zone 3
-                            if fishPopulation[k].GetSubReachPos() == 3:
-                                fishPopulation[k].SetSubReachPosTwo(random.randrange(2, 5))
-                            # Fishes in Zone 4
-                            if fishPopulation[k].GetSubReachPos() == 4:
-                                # Fishes in Zone 5
-                                fishPopulation[k].SetSubReachPosTwo(random.randrange(3, 5))
+                # OPEN POPULATION SCENARIO
+                elif self.checkBoxOpenPopulation.isChecked():
 
-                # Mortality an option?
-                if self.checkBoxOpenPopulation.isChecked():
+                    # Mortality an option?
                     if fishDeath[k] <= self.openPopulationMoralityInput.value():
                         # Kill the fish:
                         fishPopulation[k].SetMortality(0)
 
-                # First scenario: no sub reach parameter:
-                if self.checkBoxNoSubreach.isChecked():
-                    # Do this first scenario if there is equal probability between the two samples:
-                    if self.checkBoxCaptureEqual.isChecked():
-                        if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInput.value():
-                            # Can't capture a dead fish:
-                            if not fishPopulation[k].GetMortality() == 0:
-                                secondPassFishes += 1
-                                fishPopulation[k].SetRecaughtStat('NO TAG')
-                                if fishPopulation[k].tagged == 1:
-                                    recapturedTaggedFish += 1
-                                    fishPopulation[k].SetRecaughtStat('YES')
-                    # Do this second scenario if sample two has different capture variability from first capture sample:
-                    elif self.checkBoxCaptureVary.isChecked():
-                        if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInputVaryTwo.value():
-                            # Can't capture a dead fish:
-                            if not fishPopulation[k].GetMortality() == 0:
-                                secondPassFishes += 1
-                                fishPopulation[k].SetRecaughtStat('NO TAG')
-                                if fishPopulation[k].tagged == 1:
-                                    recapturedTaggedFish += 1
-                                    fishPopulation[k].SetRecaughtStat('YES')
-                    # Do this third scenario if fish has random capture probability as well:
-                    elif self.checkBoxCaptureRandomPerFish.isChecked():
-                        randomCaptureProbabilityRoll = np.random.rand(1)
-                        if fishPopulation[k].captureProbQTwo <= randomCaptureProbabilityRoll[0]:
-                            # Can't capture a dead fish:
-                            if not fishPopulation[k].GetMortality() == 0:
-                                secondPassFishes += 1
-                                fishPopulation[k].SetRecaughtStat('NO TAG')
-                                if fishPopulation[k].tagged == 1:
-                                    recapturedTaggedFish += 1
-                                    fishPopulation[k].SetRecaughtStat('YES')
-                # Second scenario: normal sub reach parameter:
-                elif self.checkBoxNormalSubreach.isChecked():
-                    # Do this first scenario if there is equal probability between the two samples:
-                    if self.checkBoxCaptureEqual.isChecked():
-                        # Check if it's in the sub reach in the first place:
-                        if fishPopulation[k].GetSubReachPosTwo() == 1:
-                            # Can we capture it?
+                    # MOVEMENT:
+                    lowBoundMovementRange = fishPopulation[k].GetSubReachPos() - (REACH_SIZE * self.migrationDistanceBox.value())
+                    highBoundMovementRange = fishPopulation[k].GetSubReachPos() + (REACH_SIZE * self.migrationDistanceBox.value())
+                    # todo: limit movement on fish population two. SET LOCATION LIMIT DISTRIBUTION.
+                    # todo: add bias upstream or downstream - beta or gamma distribution
+                    # Range size - 100 to 200, [-inf, 0) is out of bounds, [0, 100] is the study reach default, [101, to inf) is out of bounds
+                    # First 1/3 of area: D (downstream),  Second 1/3 of area: C (central), Third 1/3 of area: U (upstream)
+                    fishPopulation[k].SetSubReachPosTwo(np.random.randint(lowBoundMovementRange, highBoundMovementRange))
+
+                    # First scenario: no sub reach parameter:
+                    if self.checkBoxNoSubreach.isChecked():
+                        # Do this first scenario if there is equal probability between the two samples:
+                        if self.checkBoxCaptureEqual.isChecked():
                             if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInput.value():
-                                secondPassFishes += 1
-                                fishPopulation[k].SetRecaughtStat('NO TAG')
-                                if fishPopulation[k].tagged == 1:
-                                    recapturedTaggedFish += 1
-                                    fishPopulation[k].SetRecaughtStat('YES')
-                    # Do this second scenario if sample two has different capture variability from first capture sample:
-                    elif self.checkBoxCaptureVary.isChecked():
-                        # Check if it's in the sub reach in the first place:
-                        if fishPopulation[k].GetSubReachPosTwo() == 1:
-                            # Can we capture it?
+                                # Can't capture a dead fish:
+                                if not fishPopulation[k].GetMortality() == 0:
+                                    secondPassFishes += 1
+                                    fishPopulation[k].SetRecaughtStat('NO TAG')
+                                    if fishPopulation[k].tagged == 1:
+                                        recapturedTaggedFish += 1
+                                        fishPopulation[k].SetRecaughtStat('YES')
+                        # Do this second scenario if sample two has different capture variability from first capture sample:
+                        elif self.checkBoxCaptureVary.isChecked():
                             if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInputVaryTwo.value():
-                                secondPassFishes += 1
-                                fishPopulation[k].SetRecaughtStat('NO TAG')
-                                if fishPopulation[k].tagged == 1:
-                                    recapturedTaggedFish += 1
-                                    fishPopulation[k].SetRecaughtStat('YES')
-                    # Do this third scenario if fish has random capture probability as well:
-                    elif self.checkBoxCaptureRandomPerFish.isChecked():
-                        # Check if it's in the sub reach in the first place:
-                        if fishPopulation[k].GetSubReachPosTwo() == 1:
-                            # Can we capture it?
+                                # Can't capture a dead fish:
+                                if not fishPopulation[k].GetMortality() == 0:
+                                    secondPassFishes += 1
+                                    fishPopulation[k].SetRecaughtStat('NO TAG')
+                                    if fishPopulation[k].tagged == 1:
+                                        recapturedTaggedFish += 1
+                                        fishPopulation[k].SetRecaughtStat('YES')
+                        # Do this third scenario if fish has random capture probability as well:
+                        elif self.checkBoxCaptureRandomPerFish.isChecked():
                             randomCaptureProbabilityRoll = np.random.rand(1)
                             if fishPopulation[k].captureProbQTwo <= randomCaptureProbabilityRoll[0]:
-                                secondPassFishes += 1
-                                fishPopulation[k].SetRecaughtStat('NO TAG')
-                                if fishPopulation[k].tagged == 1:
-                                    recapturedTaggedFish += 1
-                                    fishPopulation[k].SetRecaughtStat('YES')
-                # Third scenario: expanded sub reach parameter:
-                elif self.checkBoxExpandedSubreach.isChecked():
-                    # Do this first scenario if there is equal probability between the two samples:
-                    if self.checkBoxCaptureEqual.isChecked():
-                        # Check if it's in the sub reach in the first place:
-                        if fishPopulation[k].GetSubReachPosTwo() == 1 or fishPopulation[k].GetSubReachPosTwo() == 2 or \
-                                fishPopulation[k].GetSubReachPosTwo() == 3:
-                            # Can we capture it?
-                            if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInput.value():
-                                secondPassFishes += 1
-                                fishPopulation[k].SetRecaughtStat('NO TAG')
-                                if fishPopulation[k].tagged == 1:
-                                    recapturedTaggedFish += 1
-                                    fishPopulation[k].SetRecaughtStat('YES')
-                    # Do this second scenario if sample two has different capture variability from first capture sample:
-                    elif self.checkBoxCaptureVary.isChecked():
-                        # Check if it's in the sub reach in the first place:
-                        if fishPopulation[k].GetSubReachPosTwo() == 1 or fishPopulation[k].GetSubReachPosTwo() == 2 or \
-                                fishPopulation[k].GetSubReachPosTwo() == 3:
-                            # Can we capture it?
-                            if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInputVaryTwo.value():
-                                secondPassFishes += 1
-                                fishPopulation[k].SetRecaughtStat('NO TAG')
-                                if fishPopulation[k].tagged == 1:
-                                    recapturedTaggedFish += 1
-                                    fishPopulation[k].SetRecaughtStat('YES')
-                    # Do this third scenario if fish has random capture probability as well:
-                    elif self.checkBoxCaptureRandomPerFish.isChecked():
-                        # Check if it's in the sub reach in the first place:
-                        if fishPopulation[k].GetSubReachPosTwo() == 1 or fishPopulation[k].GetSubReachPosTwo() == 2 or \
-                                fishPopulation[k].GetSubReachPosTwo() == 3:
-                            # Can we capture it?
-                            randomCaptureProbabilityRoll = np.random.rand(1)
-                            if fishPopulation[k].captureProbQTwo <= randomCaptureProbabilityRoll[0]:
-                                secondPassFishes += 1
-                                fishPopulation[k].SetRecaughtStat('NO TAG')
-                                if fishPopulation[k].tagged == 1:
-                                    recapturedTaggedFish += 1
-                                    fishPopulation[k].SetRecaughtStat('YES')
+                                # Can't capture a dead fish:
+                                if not fishPopulation[k].GetMortality() == 0:
+                                    secondPassFishes += 1
+                                    fishPopulation[k].SetRecaughtStat('NO TAG')
+                                    if fishPopulation[k].tagged == 1:
+                                        recapturedTaggedFish += 1
+                                        fishPopulation[k].SetRecaughtStat('YES')
+                    # Second scenario: varied sub reach parameter:
+                    elif self.checkBoxVariedSubreach.isChecked():
+                        # Do this first scenario if there is equal probability between the two samples:
+                        if self.checkBoxCaptureEqual.isChecked():
+                            # Check if it's in the sub reach in the first place:
+                            if lowerBoundStudyReach <= fishPopulation[j].GetSubReachPosTwo() <= upperBoundStudyReach:
+                                # Can we capture it?
+                                if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInput.value():
+                                    secondPassFishes += 1
+                                    fishPopulation[k].SetRecaughtStat('NO TAG')
+                                    if fishPopulation[k].tagged == 1:
+                                        recapturedTaggedFish += 1
+                                        fishPopulation[k].SetRecaughtStat('YES')
+                        # Do this second scenario if sample two has different capture variability from first capture sample:
+                        elif self.checkBoxCaptureVary.isChecked():
+                            # Check if it's in the sub reach in the first place:
+                            if lowerBoundStudyReach <= fishPopulation[j].GetSubReachPosTwo() <= upperBoundStudyReach:
+                                # Can we capture it?
+                                if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInputVaryTwo.value():
+                                    secondPassFishes += 1
+                                    fishPopulation[k].SetRecaughtStat('NO TAG')
+                                    if fishPopulation[k].tagged == 1:
+                                        recapturedTaggedFish += 1
+                                        fishPopulation[k].SetRecaughtStat('YES')
+                        # Do this third scenario if fish has random capture probability as well:
+                        elif self.checkBoxCaptureRandomPerFish.isChecked():
+                            # Check if it's in the sub reach in the first place:
+                            if lowerBoundStudyReach <= fishPopulation[j].GetSubReachPosTwo() <= upperBoundStudyReach:
+                                # Can we capture it?
+                                randomCaptureProbabilityRoll = np.random.rand(1)
+                                if fishPopulation[k].captureProbQTwo <= randomCaptureProbabilityRoll[0]:
+                                    secondPassFishes += 1
+                                    fishPopulation[k].SetRecaughtStat('NO TAG')
+                                    if fishPopulation[k].tagged == 1:
+                                        recapturedTaggedFish += 1
+                                        fishPopulation[k].SetRecaughtStat('YES')
             # End Second Capture Pass
 
             # Estimation formula
@@ -902,7 +1036,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         arrayResult = np.array(simulationResults)
         # Add the overall summary for this result to the saved array for all simulations
         thisSimulation = SimulationParameters(numTrials, arrayResult.mean(), populationSize, testResultsArray)
-        thisSimulation.SetParameterString(populationType + "\n" + captureProbabilityString + "\n" + captureProbabilityType + "\n" + tagLossType + "\n" + subReachType)
+        thisSimulation.SetParameterString(populationType + "\n" + captureProbabilityString + "\n" + captureProbabilityType + "\n" + tagLossType + "\n"\
+                                          + subReachType + "\n" + migrationString)
         simulationSaves.append(thisSimulation)
 
         # Add this to the data log:
@@ -930,6 +1065,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                                              + captureProbabilityType)
         self.simulationParameterPrint.append(tagLossType + "\t\tSubreach Type: " + subReachType)
         self.simulationParameterPrint.append("Number of Trials: " + str(numTrials))
+        self.simulationParameterPrint.append(migrationString)
 
         # Graph:
         # count number in each bin
@@ -961,7 +1097,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     #################################################################################
     def simulateFishes(self):
 
-        # QMessageBox.information(self, "A Good Message", "Success. Results shown in the results box.")
+        # QMessageBox.information(self, "A Good Msage", "Success. Results shown in the results box.")
 
         # Get Population and whether it is a closed population or open population
         self.getPopulationParameter()
@@ -978,6 +1114,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.refreshResultsButton.setEnabled(True)
         self.clearDataButton.setEnabled(True)
         self.viewImageButton.setEnabled(True)
+        self.populationGraphCheckBox.setEnabled(True)
         # Simulate and plot
         self.simulateAndPlot()
 
