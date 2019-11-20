@@ -12,14 +12,14 @@ class Fish:
     subReachPos: int
     subReachPosTwo: int
     mortality: int
-    enterExit: int
+    migrationDistance: int
     reCaught: ''
 
     #################################################################################
     # FISH CONSTRUCTOR
     #################################################################################
     def __init__(self, captureProbQ: float, tagged: int, tagLoss: float, subReachPos: int, mortality: int,
-                 enterExit: int):
+                 migrationDistance: int):
         self.captureProbQ = captureProbQ
         self.captureProbQTwo = -1
         self.tagged = tagged
@@ -27,7 +27,7 @@ class Fish:
         self.subReachPos = subReachPos
         self.subReachPosTwo = -1
         self.mortality = mortality
-        self.enterExit = enterExit
+        self.migrationDistance = migrationDistance
         self.reCaught = '-'
 
     #################################################################################
@@ -65,6 +65,9 @@ class Fish:
     #################################################################################
     def SetSubReachPosTwo(self, zone):
         self.subReachPosTwo = zone
+
+    def SetMigrationDistance(self, distance):
+        self.migrationDistance = distance
 
     #################################################################################
     # SETTER FOR MORTALITY: 1 FISH IS ALIVE, 0 IT'S DEAD
@@ -123,8 +126,8 @@ class Fish:
     #################################################################################
     # Get whether fish is entering or leaving or staying.
     #################################################################################
-    def GetEnterExitMode(self):
-        return self.enterExit
+    def GetMigrationDistance(self):
+        return self.migrationDistance
 
     #################################################################################
     # GETTER FOR RECAUGHT STATUS
