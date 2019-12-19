@@ -1481,9 +1481,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # Start multiprocessing:
         global simulationResult
         simulationResult = []
-        with concurrent.futures.ProcessPoolExecutor() as executor:
+        start_time = time.time()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
             results = [executor.submit(self.simulateMultiProcStyle(simulationResult, i)) for i in range(numTrials)]
 
+        print("--- %s seconds ---" % (time.time() - start_time))
         # Goes to threadResult function`
         return "Done."
 
@@ -1518,8 +1520,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         thisSimulation.SetParameterString(populationType + "\n" + captureProbabilityString + "\n" + captureProbabilityType + "\n" + tagLossType + "\n" \
                                           + subReachType + "\n" + migrationString)
         simulationSaves.append(thisSimulation)
-        print(len(simulationSaves))
 
+        # Add this to the data log:
+        self.loadSimulationNumberInput.addItem(str(len(simulationSaves)))
+
+        # Re-enable simulations
+        self.runSimulationButton.setEnabled(True)
         # Graph:
         # count number in each bin
         bins = np.linspace(min(simulationResult), max(simulationResult))
@@ -1540,8 +1546,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         plt.title('Population Estimate Simulation N = ' + str(populationSize), fontsize=15)
         plt.legend(loc='best')
         plt.show()
-        # Re-enable simulations
-        self.runSimulationButton.setEnabled(True)
 
     #################################################################################
     # Multi-thread Worker: Set Connections, then run
@@ -1570,8 +1574,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.simulateMulti()
 
         # Declare array for results:
-        # simulationResults = []
+        simulationResults = []
+        # start_time = time.time()
         # arrayResult = self.simulate(simulationResults)
+        # print("--- %s seconds ---" % (time.time() - start_time))
 
         # Graph:
         # count number in each bin
