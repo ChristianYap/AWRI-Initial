@@ -8,8 +8,12 @@
 import sys
 import os
 import csv
+import time
+import traceback
+
 from PyQt5.QtWidgets import *
-from PyQt5.QtCore import QDate, QTime, QDateTime, Qt
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
 from MainWindow import Ui_MainWindow
 import numpy as np
 import matplotlib.pyplot as plt
@@ -22,6 +26,82 @@ from scipy.stats import beta
 REACH_SIZE = 100
 BETA_DISTRIBUTION = 2.75
 simulationSaves = []
+
+
+#################################################################################
+# CLASS FOR WORKER SIGNALS
+#################################################################################
+class WorkerSignals(QObject):
+    '''
+    Defines the signals available from a running worker thread.
+
+    Supported signals are:
+
+    finished
+        No data
+
+    error
+        `tuple` (exctype, value, traceback.format_exc() )
+
+    result
+        `object` data returned from processing, anything
+
+    progress
+        `int` indicating % progress
+
+    '''
+    finished = pyqtSignal()
+    error = pyqtSignal(tuple)
+    result = pyqtSignal(object)
+    progress = pyqtSignal(int)
+
+
+#################################################################################
+# CLASS FOR QRunnable
+#################################################################################
+class Worker(QRunnable):
+    '''
+        Worker thread
+
+        Inherits from QRunnable to handler worker thread setup, signals and wrap-up.
+
+        :param callback: The function callback to run on this worker thread. Supplied args and
+                         kwargs will be passed through to the runner.
+        :type callback: function
+        :param args: Arguments to pass to the callback function
+        :param kwargs: Keywords to pass to the callback function
+
+        '''
+
+    def __init__(self, fn, *args, **kwargs):
+        super(Worker, self).__init__()
+
+        # Store constructor arguments (re-used for processing)
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
+        self.signals = WorkerSignals()
+
+        # Add the callback to our kwargs
+        self.kwargs['progress_callback'] = self.signals.progress
+
+    @pyqtSlot()
+    def run(self):
+        '''
+        Initialise the runner function with passed args, kwargs.
+        '''
+
+        # Retrieve args/kwargs here; and fire processing using them
+        try:
+            result = self.fn(*self.args, **self.kwargs)
+        except:
+            traceback.print_exc()
+            exctype, value = sys.exc_info()[:2]
+            self.signals.error.emit((exctype, value, traceback.format_exc()))
+        else:
+            self.signals.result.emit(result)  # Return the result of the processing
+        finally:
+            self.signals.finished.emit()  # Done
 
 
 #################################################################################
@@ -46,6 +126,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.GroupButtons()
         self.Connections()
         self.show()
+
+        # Allow for threading
+        self.threadpool = QThreadPool()
+        print("Multi-threading with maximum %d threads" % self.threadpool.maxThreadCount())
 
     #################################################################################
     # Update UI Presets
@@ -755,6 +839,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # Be able to save data for each simulation:
         for i in range(0, numTrials):
+
             # Generate random numbers for capture probability:
             if self.checkBoxClosedPopulation.isChecked():
                 qCatchValue = np.random.rand(populationSize)
@@ -1069,6 +1154,60 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         return arrayResult
 
     #################################################################################
+    # Multi-thread Worker: Progress Update, catches what is emitted
+    #################################################################################
+    def threadProgress(self, n):
+        print("%d%% done" % n)
+
+    def whatever(self):
+        print("Whatever")
+
+    #################################################################################
+    # Multi-thread Worker: Function to execute
+    #################################################################################
+    def threadExecute(self, a, b, progress_callback):
+        for n in range(0, 5):
+            time.sleep(1)
+            # threadProgress catches what is emitted:
+            print(a)
+            print(b)
+            self.whatever()
+            progress_callback.emit(n*100/4)
+
+        # Goes to threadResult function
+        return "Done."
+
+    #################################################################################
+    # Multi-thread Worker: Results of thread Execute
+    #################################################################################
+    def threadResult(self, s):
+        print(s)
+
+    #################################################################################
+    # Multi-thread Worker: Thread Completed
+    #################################################################################
+    def threadComplete(self):
+        print("Thread Complete.")
+
+    #################################################################################
+    # Multi-thread Worker: Set Connections, then run
+    #################################################################################
+    def threadSetAndExecute(self):
+        worker = Worker(self.threadExecute, "lol1", "lol2")
+        worker.signals.result.connect(self.threadResult)
+        worker.signals.finished.connect(self.threadComplete)
+        worker.signals.progress.connect(self.threadProgress)
+
+        # Execute thread
+        self.threadpool.start(worker)
+
+    #################################################################################
+    # Simulation MULTIPROCESS / MULTITHREADING STYLE
+    #################################################################################
+    def simulateMulti(self):
+        self.threadSetAndExecute()
+
+    #################################################################################
     # Simulation and then plot histogram
     #################################################################################
     def simulateAndPlot(self):
@@ -1076,9 +1215,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.runSimulationButton.setEnabled(False)
         # Declare array for results:
         simulationResults = []
-
         self.simulationParameterPrint.clear()
         arrayResult = self.simulate(simulationResults)
+        self.simulateMulti()
         self.simulationParameterPrint.append('Mean Population estimation: ' + str('{number:.{digits}f}'.format(number=arrayResult.mean(), digits=4)))
         # Print out Parameters
         self.simulationParameterPrint.append("Actual Population Size: " + str(populationSize) + "\tType: " + populationType)
