@@ -10,6 +10,7 @@ import os
 import csv
 import time
 import traceback
+import concurrent.futures
 
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
@@ -26,7 +27,6 @@ from scipy.stats import beta
 REACH_SIZE = 100
 BETA_DISTRIBUTION = 2.75
 simulationSaves = []
-
 
 #################################################################################
 # CLASS FOR WORKER SIGNALS
@@ -93,13 +93,13 @@ class Worker(QRunnable):
 
         # Retrieve args/kwargs here; and fire processing using them
         try:
-            result = self.fn(*self.args, **self.kwargs)
+            resultThread = self.fn(*self.args, **self.kwargs)
         except:
             traceback.print_exc()
             exctype, value = sys.exc_info()[:2]
             self.signals.error.emit((exctype, value, traceback.format_exc()))
         else:
-            self.signals.result.emit(result)  # Return the result of the processing
+            self.signals.result.emit(resultThread)  # Return the result of the processing
         finally:
             self.signals.finished.emit()  # Done
 
@@ -831,7 +831,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         size = (REACH_SIZE * self.subReachMovementOptionBox.value())
         lowerBoundStudyReach = (REACH_SIZE / 2) - (size / 2)
         upperBoundStudyReach = (REACH_SIZE / 2) + (size / 2)
-
     #################################################################################
     # Simulate Fishes
     #################################################################################
@@ -1157,24 +1156,51 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     # Multi-thread Worker: Progress Update, catches what is emitted
     #################################################################################
     def threadProgress(self, n):
-        print("%d%% done" % n)
+        # emitted goes here...
+        # Need to declare globally first, then do
+        # global x, then set it:
+        # https://www.youtube.com/watch?v=fKl2JW_qrso&t=2078s
+        x = "%d%% done" % n
+        print(x)
 
     def whatever(self):
         print("Whatever")
+
+    def what(self, seconds):
+        print("what")
+        time.sleep(1)
+        msg = 'Finished {seconds}'
+        return msg
 
     #################################################################################
     # Multi-thread Worker: Function to execute
     #################################################################################
     def threadExecute(self, a, b, progress_callback):
+
         for n in range(0, 5):
-            time.sleep(1)
             # threadProgress catches what is emitted:
             print(a)
             print(b)
+            print(numTrials)
+            self.numTrialsInput.setValue(55)
             self.whatever()
             progress_callback.emit(n*100/4)
 
-        # Goes to threadResult function
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            results = [executor.submit(self.what(1)) for _ in range(0, 4)]
+
+            for f in concurrent.futures.as_completed(results):
+                try:
+                    print(f.result())
+                except Exception as exc:
+                    print('%r generated an exception %s' % ('Error Futures', exc))
+                else:
+                    print('%r' % 'Error Futures')
+                # https://python-forum.io/Thread-Parsing-infor-from-scraped-files
+                # https://docs.python.org/3.3/library/concurrent.futures.html
+                # https://christophergs.github.io/python/2018/03/25/python-concurrent-futures/
+
+        # Goes to threadResult function`
         return "Done."
 
     #################################################################################
