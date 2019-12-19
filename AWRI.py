@@ -29,6 +29,7 @@ REACH_SIZE = 100
 BETA_DISTRIBUTION = 2.75
 simulationSaves = []
 global simulationResult
+global testResultArray
 
 
 #################################################################################
@@ -1461,21 +1462,20 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         simulationResult.append(estimatedSampleSizeN)
         # ######## START RAW DATA SAVING, ALLOWS USER TO VIEW RESULTS OF EACH SIMULATION ######################### #
+        # Put this test result in a list for raw  data viewing:
+        global testResultsArray
+        if i == 0:
+            testResult = TestResults(populationSize, estimatedSampleSizeN, firstPassMarkedFishes, secondPassFishes, recapturedTaggedFish, fishPopulation)
+            testResultsArray = [testResult]
+        else:
+            testResult = TestResults(populationSize, estimatedSampleSizeN, firstPassMarkedFishes, secondPassFishes, recapturedTaggedFish, fishPopulation)
+            testResultsArray.insert(i, testResult)
 
     #################################################################################
     # Multi-thread Worker: Function to execute
     #################################################################################
     def threadExecute(self, a, b, progress_callback):
 
-        # https://python-forum.io/Thread-Parsing-infor-from-scraped-files
-        # https://docs.python.org/3.3/library/concurrent.futures.html
-        # https://christophergs.github.io/python/2018/03/25/python-concurrent-futures/
-
-        # for n in range(0, 5):
-        # threadProgress catches what is emitted:
-        # print(a)  - prints placeholder argument 1
-        # print(b) - prints placeholder argument 2
-        # self.whatever()
         # progress_callback.emit(n*100/4)
 
         # Start multiprocessing:
@@ -1483,14 +1483,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         simulationResult = []
         with concurrent.futures.ProcessPoolExecutor() as executor:
             results = [executor.submit(self.simulateMultiProcStyle(simulationResult, i)) for i in range(numTrials)]
-
-            # for f in concurrent.futures.as_completed(results):
-            #    try:
-            #        print(f.result())
-            #    except Exception as exc:
-            #        print('%r generated an exception %s' % ('Error Futures', exc))
-            #    else:
-            #        print('%r' % 'Error Futures')
 
         # Goes to threadResult function`
         return "Done."
@@ -1507,7 +1499,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     def threadComplete(self):
 
         print("Thread Complete.")
-
+        # Create an np array for the results:
         arrayResult = np.array(simulationResult)
 
         # Print out results
@@ -1519,6 +1511,14 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.simulationParameterPrint.append(tagLossType + "\t\tSubreach Type: " + subReachType)
         self.simulationParameterPrint.append("Number of Trials: " + str(numTrials))
         self.simulationParameterPrint.append(migrationString)
+
+        # Add the overall summary for this result to the saved array for all simulations
+        global testResultsArray
+        thisSimulation = SimulationParameters(numTrials, arrayResult.mean(), populationSize, testResultsArray)
+        thisSimulation.SetParameterString(populationType + "\n" + captureProbabilityString + "\n" + captureProbabilityType + "\n" + tagLossType + "\n" \
+                                          + subReachType + "\n" + migrationString)
+        simulationSaves.append(thisSimulation)
+        print(len(simulationSaves))
 
         # Graph:
         # count number in each bin
