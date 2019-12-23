@@ -12,13 +12,18 @@ import csv
 import time
 import traceback
 import concurrent.futures
+import multiprocessing
 
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from MainWindow import Ui_MainWindow
 import numpy as np
-import matplotlib.pyplot as plt
+
+# https://stackoverflow.com/questions/27147300/matplotlib-tcl-asyncdelete-async-handler-deleted-by-the-wrong-thread/29172195#29172195
+import matplotlib
+matplotlib.use('TkAgg')
+from matplotlib import pyplot as plt
 from SimulationParameters import SimulationParameters
 from Fish import Fish
 from TestResults import TestResults
@@ -159,6 +164,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.saveResultsButton.setEnabled(False)
         self.clearDataButton.setEnabled(False)
         self.loadSimulationNumberInput.setCurrentText('1')
+
+        self.progressBar.setVisible(False)
 
     #################################################################################
     # Group the buttons so user can only choose one option in each group
@@ -837,13 +844,201 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         upperBoundStudyReach = (REACH_SIZE / 2) + (size / 2)
 
     #################################################################################
+    # Multi-thread Worker: Progress Update, catches what is emitted
+    #################################################################################
+    def threadProgress(self, n):
+        # emitted goes here...
+        # Need to declare globally first, then do
+        # global x, then set it:
+        # https://www.youtube.com/watch?v=fKl2JW_qrso&t=2078s
+        x = "%d%% done" % n
+        print(x)
+
+    #################################################################################
+    # Multi-processing .....
+    #################################################################################
+    def threadExecute(self, a, b, progress_callback):
+        global simulationResult
+        simulationResult = []
+        lock1 = multiprocessing.Lock()
+        lock2 = multiprocessing.Lock()
+        i = 0
+        numberProcess = multiprocessing.cpu_count()
+        start_time = time.time()
+        while i < numTrials:
+            processes = []
+            m = 0
+            for k in range(0, 10):
+                if i < numTrials:
+                    process = multiprocessing.Process(target=self.simulateMultiProcStyle(simulationResult, i, lock1, lock2))
+                    processes.append(process)
+                    process.start()
+                    i +=1
+                    m +=1
+            for k in range(0, m):
+                processes[k].join()
+        print("--- %s seconds ---" % (time.time() - start_time))
+        return "Done"
+
+    #################################################################################
+    # Multi-thread Worker: Function to execute
+    #################################################################################
+    def threadExecuteTwo(self, a, b, progress_callback):
+
+        # progress_callback.emit(n*100/4)
+        # Start multiprocessing:
+        global simulationResult
+        simulationResult = []
+        start_time = time.time()
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            results = [executor.submit(self.simulateMultiProcStyle(simulationResult, i), i) for i in range(numTrials)]
+        print("--- %s seconds ---" % (time.time() - start_time))
+        # Goes to threadResult function`
+        return "Done."
+
+    #################################################################################
+    # Multi-thread Worker: Results of thread Execute
+    #################################################################################
+    def threadResult(self, s):
+        print(s)
+
+    #################################################################################
+    # Multi-thread Worker: Thread Completed
+    #################################################################################
+    def threadComplete(self):
+
+        print("Thread Complete.")
+        # Create an np array for the results:
+        arrayResult = np.array(simulationResult)
+
+        # Print out results
+        self.simulationParameterPrint.append('Mean Population estimation: ' + str('{number:.{digits}f}'.format(number=arrayResult.mean(), digits=4)))
+        # Print out Parameters
+        self.simulationParameterPrint.append("Actual Population Size: " + str(populationSize) + "\tType: " + populationType)
+        self.simulationParameterPrint.append(captureProbabilityString + "\tType: "
+                                             + captureProbabilityType)
+        self.simulationParameterPrint.append(tagLossType + "\t\tSubreach Type: " + subReachType)
+        self.simulationParameterPrint.append("Number of Trials: " + str(numTrials))
+        self.simulationParameterPrint.append(migrationString)
+
+        # Add the overall summary for this result to the saved array for all simulations
+        global testResultsArray
+        thisSimulation = SimulationParameters(numTrials, arrayResult.mean(), populationSize, testResultsArray)
+        thisSimulation.SetParameterString(populationType + "\n" + captureProbabilityString + "\n" + captureProbabilityType + "\n" + tagLossType + "\n" \
+                                          + subReachType + "\n" + migrationString)
+        simulationSaves.append(thisSimulation)
+
+        # Add this to the data log:
+        self.loadSimulationNumberInput.addItem(str(len(simulationSaves)))
+
+        # Re-enable simulations
+        self.runSimulationButton.setEnabled(True)
+        self.progressBar.setEnabled(False)
+
+    #################################################################################
+    # Multi-thread Worker: Set Connections, then run
+    #################################################################################
+    def threadSetAndExecute(self):
+        worker = Worker(self.threadExecute, "placeholderArgument1", "placeholderArgument2")
+        worker.signals.result.connect(self.threadResult)
+        worker.signals.finished.connect(self.threadComplete)
+        worker.signals.progress.connect(self.threadProgress)
+
+        # Execute thread
+        self.threadpool.start(worker)
+
+    #################################################################################
+    # Simulation MULTIPROCESS / MULTI-THREADING STYLE
+    #################################################################################
+    def simulateMulti(self):
+        self.threadSetAndExecute()
+
+    #################################################################################
+    # SIMULATION - TAB TWO
+    #################################################################################
+    def simulateFishes(self):
+
+        # QMessageBox.information(self, "A Good Msage", "Success. Results shown in the results box.")
+
+        # Get Population and whether it is a closed population or open population
+        self.getPopulationParameter()
+        # Get Capture Probability for the Samples
+        self.getCaptureProbabilityParameter()
+        # Get Tag Loss True/False
+        self.getTagLossParameter()
+        # Get SubReach Size
+        self.getSubReachSizeParameter()
+        # Get Number of Trials
+        self.getNumTrials()
+        # Enable Save Button
+        self.saveResultsButton.setEnabled(True)
+        self.refreshResultsButton.setEnabled(True)
+        self.clearDataButton.setEnabled(True)
+        self.viewImageButton.setEnabled(True)
+        self.populationGraphCheckBox.setEnabled(True)
+
+        # Simulate and plot
+        self.progressBar.setVisible(True)
+        self.progressBar.setEnabled(True)
+        self.simulateAndPlot()
+
+    #################################################################################
+    # Simulation and then plot histogram
+    #################################################################################
+    def simulateAndPlot(self):
+        self.runSimulationButton.setEnabled(False)
+        self.simulationParameterPrint.clear()
+
+        if self.checkBoxOpenPopulation and not self.checkBoxClosedPopulation:
+            self.simulateMulti()
+        else:
+            # Declare array for results:
+            simulationResults = []
+            start_time = time.time()
+            arrayResult = self.simulate(simulationResults)
+            print("--- %s seconds ---" % (time.time() - start_time))
+
+            # Print out results
+            meanResult = arrayResult.mean()
+            self.simulationParameterPrint.append('Mean Population estimation: ' + str('{number:.{digits}f}'.format(number= meanResult, digits=4)))
+            # Print out Parameters
+            self.simulationParameterPrint.append("Actual Population Size: " + str(populationSize) + "\tType: " + populationType)
+            self.simulationParameterPrint.append(captureProbabilityString + "\tType: "
+                                                 + captureProbabilityType)
+            self.simulationParameterPrint.append(tagLossType + "\t\tSubreach Type: " + subReachType)
+            self.simulationParameterPrint.append("Number of Trials: " + str(numTrials))
+            self.simulationParameterPrint.append(migrationString)
+
+            # Graph:
+            # count number in each bin
+            bins = np.linspace(min(simulationResults), max(simulationResults))
+            hist, _ = np.histogram(simulationResults, bins)
+            plt.figure(figsize=[10, 8])
+            # plt.bar(bin_edges[:-1], hist, width=0.5, color='#0504aa', alpha=0.7)
+            plt.bar(bins[:-1], hist, label=str(numTrials) + ' trials', width=1)
+            # .plot(bins[:-1], hist, 'r-', lw=5)
+            plt.axvline(populationSize, color='g', linestyle="dashed", lw=2, label=str('True Population Size'))
+            plt.axvline(meanResult, color='r', lw=2, label=str('Simulation Mean'))
+            plt.xlim(min(bins), max(bins))
+            plt.grid(axis='y', alpha=0.75)
+            plt.xlabel('Population Estimate\n Mean Population Estimation = ' + str('{number:.{digits}f}'.format(number= meanResult, digits=2)), fontsize=15)
+            plt.ylabel('Frequency', fontsize=15)
+            plt.xticks(fontsize=15)
+            plt.yticks(fontsize=15)
+            plt.ylabel('Frequency', fontsize=15)
+            plt.title('Population Estimate Simulation N = ' + str(populationSize), fontsize=15)
+            plt.legend(loc='best')
+            plt.show()
+            # https://www.datacamp.com/community/tutorials/histograms-matplotlib
+            # https://www.youtube.com/watch?time_continue=79&v=Z2zUGmqIDto
+
+    #################################################################################
     # Simulate Fishes
     #################################################################################
     def simulate(self, simulationResults):
 
         # Be able to save data for each simulation:
         for i in range(0, numTrials):
-
             # Generate random numbers for capture probability:
             if self.checkBoxClosedPopulation.isChecked():
                 qCatchValue = np.random.rand(populationSize)
@@ -1130,8 +1325,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             # Estimation formula
             estimatedSampleSizeN = (((firstPassMarkedFishes + 1) * (secondPassFishes + 1)) / (recapturedTaggedFish + 1)) - 1
-
             simulationResults.append(estimatedSampleSizeN)
+            self.progressBar.setValue(i*100/numTrials)
             # ######## START RAW DATA SAVING, ALLOWS USER TO VIEW RESULTS OF EACH SIMULATION ######################### #
 
             # Put this test result in a list for raw  data viewing:
@@ -1154,35 +1349,34 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.loadSimulationNumberInput.addItem(str(len(simulationSaves)))
 
         self.runSimulationButton.setEnabled(True)
+        self.progressBar.setVisible(False)
 
         return arrayResult
-
-    #################################################################################
-    # Multi-thread Worker: Progress Update, catches what is emitted
-    #################################################################################
-    def threadProgress(self, n):
-        # emitted goes here...
-        # Need to declare globally first, then do
-        # global x, then set it:
-        # https://www.youtube.com/watch?v=fKl2JW_qrso&t=2078s
-        x = "%d%% done" % n
-        print(x)
 
     #################################################################################
     # Multi-thread Worker: Simulation in multiprocess
     #################################################################################
     def simulateMultiProcStyle(self, simulationResult, i):
         # Be able to save data for each simulation:
-        # Generate random numbers for capture probability:
+        # Generate random numbers for capture probability for first and second catch:
         if self.checkBoxClosedPopulation.isChecked():
+            closedPopulation = True
+            openPopulation = False
             qCatchValue = np.random.rand(populationSize)
+            qCatchValueTwo = np.random.rand(populationSize)
+            fishDeath = np.random.rand(populationSize)
         elif self.checkBoxOpenPopulation.isChecked():
+            openPopulation = True
+            closedPopulation = False
             qCatchValue = np.random.rand(populationSize * 3)
+            qCatchValueTwo = np.random.rand(populationSize * 3)
+            fishDeath = np.random.rand(populationSize * 3)
+
         tagLossIndex = []
         fishLocation = []
 
         # For Open Population, do three areas:
-        if self.checkBoxOpenPopulation.isChecked():
+        if openPopulation and not closedPopulation:
             # Range size - 100 to 200, [-inf, 0) is out of bounds, [0, 100] is the study reach default, [101, to inf) is out of bounds
             # First 1/3 of area: D (downstream),  Second 1/3 of area: C (central), Third 1/3 of area: U (upstream)
             fishLocation.extend(np.random.randint(-REACH_SIZE, 1, populationSize))
@@ -1279,14 +1473,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # ########################################### END BREAK ################################################# #
         # self.simulationParameterPrint.append('Fishes caught during first pass: ' + str(firstPassMarkedFishes))
         # ################################ START SECOND PASS ################################################# #
-        # Create new catch values
-        # Generate random numbers for capture probability:
-        if self.checkBoxClosedPopulation.isChecked():
-            qCatchValueTwo = np.random.rand(populationSize)
-            fishDeath = np.random.rand(populationSize)
-        elif self.checkBoxOpenPopulation.isChecked():
-            qCatchValueTwo = np.random.rand(populationSize * 3)
-            fishDeath = np.random.rand(populationSize * 3)
 
         # Declare variables
         secondPassFishes = 0
@@ -1297,7 +1483,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         for k in range(len(qCatchValueTwo)):
             fishPopulation[k].SetCaptureProbabilityTwo(qCatchValueTwo[k])
             # CLOSED POPULATION:
-            if self.checkBoxClosedPopulation.isChecked():
+            if closedPopulation and not openPopulation:
                 # First scenario: no sub reach parameter:
                 if self.checkBoxNoSubreach.isChecked():
                     # Do this first scenario if there is equal probability between the two samples:
@@ -1370,7 +1556,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                                     fishPopulation[k].SetRecaughtStat('YES')
 
             # OPEN POPULATION SCENARIO
-            elif self.checkBoxOpenPopulation.isChecked():
+            elif openPopulation and not closedPopulation:
                 # Mortality an option?
                 if fishDeath[k] <= self.openPopulationMoralityInput.value():
                     # Kill the fish:
@@ -1458,8 +1644,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # End Second Capture Pass
 
         # Estimation formula
-        estimatedSampleSizeN = (((firstPassMarkedFishes + 1) * (secondPassFishes + 1)) / (recapturedTaggedFish + 1)) - 1
-
+        estimatedSampleSizeN = (((firstPassMarkedFishes + 1) * (secondPassFishes + 1)) / (recapturedTaggedFish + 1))
         simulationResult.append(estimatedSampleSizeN)
         # ######## START RAW DATA SAVING, ALLOWS USER TO VIEW RESULTS OF EACH SIMULATION ######################### #
         # Put this test result in a list for raw  data viewing:
@@ -1472,163 +1657,314 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             testResultsArray.insert(i, testResult)
 
     #################################################################################
-    # Multi-thread Worker: Function to execute
+    # Multi-thread Worker: Simulation in multiprocess
     #################################################################################
-    def threadExecute(self, a, b, progress_callback):
+    def simulateMultiProcStyle(self, simulationResult, i, lockOne, lockTwo):
+        # Be able to save data for each simulation:
+        # Generate random numbers for capture probability for first and second catch:
+        if self.checkBoxClosedPopulation.isChecked():
+            closedPopulation = True
+            openPopulation = False
+            qCatchValue = np.random.rand(populationSize)
+            qCatchValueTwo = np.random.rand(populationSize)
+            fishDeath = np.random.rand(populationSize)
+        elif self.checkBoxOpenPopulation.isChecked():
+            openPopulation = True
+            closedPopulation = False
+            qCatchValue = np.random.rand(populationSize * 3)
+            qCatchValueTwo = np.random.rand(populationSize * 3)
+            fishDeath = np.random.rand(populationSize * 3)
 
-        # progress_callback.emit(n*100/4)
+        tagLossIndex = []
+        fishLocation = []
 
-        # Start multiprocessing:
-        global simulationResult
-        simulationResult = []
-        start_time = time.time()
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            results = [executor.submit(self.simulateMultiProcStyle(simulationResult, i)) for i in range(numTrials)]
+        # For Open Population, do three areas:
+        if openPopulation and not closedPopulation:
+            # Range size - 100 to 200, [-inf, 0) is out of bounds, [0, 100] is the study reach default, [101, to inf) is out of bounds
+            # First 1/3 of area: D (downstream),  Second 1/3 of area: C (central), Third 1/3 of area: U (upstream)
+            fishLocation.extend(np.random.randint(-REACH_SIZE, 1, populationSize))
+            fishLocation.extend(np.random.randint(1, REACH_SIZE + 1, populationSize))
+            fishLocation.extend(np.random.randint(REACH_SIZE + 1, REACH_SIZE * 2, populationSize))
+        # Else we do one whole study reach:
+        else:
+            # Range size: 0 to 100
+            fishLocation = [np.random.randint(0, REACH_SIZE + 1) for p in range(0, populationSize)]
+            # Set initial location of fish:
 
-        print("--- %s seconds ---" % (time.time() - start_time))
-        # Goes to threadResult function`
-        return "Done."
+        # Get lower and upper bounds
+        self.SetSubReachBoundary()
 
-    #################################################################################
-    # Multi-thread Worker: Results of thread Execute
-    #################################################################################
-    def threadResult(self, s):
-        print(s)
+        # ####################### Create fish structure, generate characteristics for each fish ############### #
+        for m in range(len(qCatchValue)):
+            if m == 0:
+                fish = Fish(qCatchValue[m], -1, -1, -1, 1, -1)
+                fishPopulation = [fish]
+                # print(str(fishPopulation[i].captureProbQ))
+            else:
+                fish = Fish(qCatchValue[m], -1, -1, -1, 1, -1)
+                fishPopulation.insert(m, fish)
+                # print(str(fishPopulation[i].captureProbQ))
 
-    #################################################################################
-    # Multi-thread Worker: Thread Completed
-    #################################################################################
-    def threadComplete(self):
+            # Set location of the fish:
+            fishPopulation[m].SetSubReachPos(fishLocation[m])
 
-        print("Thread Complete.")
-        # Create an np array for the results:
-        arrayResult = np.array(simulationResult)
+        # ################################START THE FIRST PASS ################################################# #
+        firstPassMarkedFishes = 0
+        # First set of fish population marked.
+        for j in range(len(qCatchValue)):
+            # ############################# If sub reach is not a factor: ############################# #
+            if self.checkBoxNoSubreach.isChecked():
+                # Do the first scenario if there is equal or varying probability between samples:
+                if self.checkBoxCaptureVary.isChecked() or self.checkBoxCaptureEqual.isChecked():
+                    if fishPopulation[j].captureProbQ <= self.captureProbabilityInput.value():
+                        # Tag the fish
+                        fishPopulation[j].SetFishTag(1)
+                        tagLossIndex.append(j)
+                        # Increment Counter:
+                        firstPassMarkedFishes += 1
+                        fishPopulation[j].SetRecaughtStat('FIRST PASS')
+                # Do this scenario if each fish has a random probability of getting captured:
+                elif self.checkBoxCaptureRandomPerFish.isChecked():
+                    randomCaptureProbabilityRoll = np.random.rand(1)
+                    if fishPopulation[j].captureProbQ <= randomCaptureProbabilityRoll[0]:
+                        # Tag the fish
+                        fishPopulation[j].SetFishTag(1)
+                        tagLossIndex.append(j)
+                        # Increment Counter:
+                        firstPassMarkedFishes += 1
+                        fishPopulation[j].SetRecaughtStat('FIRST PASS')
+                # End this scenario
+            # ############################# End the no sub reach parameter ############################# #
+            # If sub reach is a factor, catch only those in study
+            elif self.checkBoxVariedSubreach.isChecked():
+                # Do the first scenario if there is equal or varying probability between samples:
+                if self.checkBoxCaptureVary.isChecked() or self.checkBoxCaptureEqual.isChecked():
+                    # Capture only if the fish is in the range:
+                    if lowerBoundStudyReach <= fishPopulation[j].GetSubReachPos() <= upperBoundStudyReach:
+                        if fishPopulation[j].captureProbQ <= self.captureProbabilityInput.value():
+                            # Tag the fish
+                            fishPopulation[j].SetFishTag(1)
+                            tagLossIndex.append(j)
+                            # Increment Counter:
+                            firstPassMarkedFishes += 1
+                            fishPopulation[j].SetRecaughtStat('FIRST PASS')
+                # Do this scenario if each fish has a random probability of getting captured:
+                elif self.checkBoxCaptureRandomPerFish.isChecked():
+                    randomCaptureProbabilityRoll = np.random.rand(1)
+                    if lowerBoundStudyReach <= fishPopulation[j].GetSubReachPos() <= upperBoundStudyReach:
+                        if fishPopulation[j].captureProbQ <= randomCaptureProbabilityRoll[0]:
+                            # Tag the fish
+                            fishPopulation[j].SetFishTag(1)
+                            tagLossIndex.append(j)
+                            # Increment Counter:
+                            firstPassMarkedFishes += 1
+                            fishPopulation[j].SetRecaughtStat('FIRST PASS')
+                # End this scenario
+            # End the normal sub reach parameter
+        # ############################################## BREAK ################################################# #
+        # Tag loss scenario:
+        tagLossCounter = 0
+        # See if the fish loses its tag after being tagged.
+        if self.checkBoxTagLoss.isChecked():
+            tagLossValue = np.random.rand(len(tagLossIndex))
+            for v in range(len(tagLossIndex)):
+                fishPopulation[tagLossIndex[v]].SetTagLoss(tagLossValue[v])
+                if fishPopulation[tagLossIndex[v]].tagLoss <= tagLossVar:
+                    fishPopulation[tagLossIndex[v]].SetFishTag(0)
+                    tagLossCounter += 1
 
-        # Print out results
-        self.simulationParameterPrint.append('Mean Population estimation: ' + str('{number:.{digits}f}'.format(number=arrayResult.mean(), digits=4)))
-        # Print out Parameters
-        self.simulationParameterPrint.append("Actual Population Size: " + str(populationSize) + "\tType: " + populationType)
-        self.simulationParameterPrint.append(captureProbabilityString + "\tType: "
-                                             + captureProbabilityType)
-        self.simulationParameterPrint.append(tagLossType + "\t\tSubreach Type: " + subReachType)
-        self.simulationParameterPrint.append("Number of Trials: " + str(numTrials))
-        self.simulationParameterPrint.append(migrationString)
+        # ########################################### END BREAK ################################################# #
+        # self.simulationParameterPrint.append('Fishes caught during first pass: ' + str(firstPassMarkedFishes))
+        # ################################ START SECOND PASS ################################################# #
 
-        # Add the overall summary for this result to the saved array for all simulations
+        # Declare variables
+        secondPassFishes = 0
+        recapturedTaggedFish = 0
+        pointHolder = []
+
+        # #################################### START SECOND CAPTURE ################################################# #
+        for k in range(len(qCatchValueTwo)):
+            fishPopulation[k].SetCaptureProbabilityTwo(qCatchValueTwo[k])
+            # CLOSED POPULATION:
+            if closedPopulation and not openPopulation:
+                # First scenario: no sub reach parameter:
+                if self.checkBoxNoSubreach.isChecked():
+                    # Do this first scenario if there is equal probability between the two samples:
+                    if self.checkBoxCaptureEqual.isChecked():
+                        if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInput.value():
+                            # Can't capture a dead fish:
+                            if not fishPopulation[k].GetMortality() == 0:
+                                secondPassFishes += 1
+                                fishPopulation[k].SetRecaughtStat('NO TAG')
+                                if fishPopulation[k].tagged == 1:
+                                    recapturedTaggedFish += 1
+                                    fishPopulation[k].SetRecaughtStat('YES')
+                    # Do this second scenario if sample two has different capture variability from first capture sample:
+                    elif self.checkBoxCaptureVary.isChecked():
+                        if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInputVaryTwo.value():
+                            # Can't capture a dead fish:
+                            if not fishPopulation[k].GetMortality() == 0:
+                                secondPassFishes += 1
+                                fishPopulation[k].SetRecaughtStat('NO TAG')
+                                if fishPopulation[k].tagged == 1:
+                                    recapturedTaggedFish += 1
+                                    fishPopulation[k].SetRecaughtStat('YES')
+                    # Do this third scenario if fish has random capture probability as well:
+                    elif self.checkBoxCaptureRandomPerFish.isChecked():
+                        randomCaptureProbabilityRoll = np.random.rand(1)
+                        if fishPopulation[k].captureProbQTwo <= randomCaptureProbabilityRoll[0]:
+                            # Can't capture a dead fish:
+                            if not fishPopulation[k].GetMortality() == 0:
+                                secondPassFishes += 1
+                                fishPopulation[k].SetRecaughtStat('NO TAG')
+                                if fishPopulation[k].tagged == 1:
+                                    recapturedTaggedFish += 1
+                                    fishPopulation[k].SetRecaughtStat('YES')
+                # Second scenario: varied sub reach parameter:
+                elif self.checkBoxVariedSubreach.isChecked():
+                    # Do this first scenario if there is equal probability between the two samples:
+                    if self.checkBoxCaptureEqual.isChecked():
+                        # Check if it's in the sub reach in the first place, we use initial position as there is no
+                        # immigration or emigration
+                        if lowerBoundStudyReach <= fishPopulation[j].GetSubReachPos() <= upperBoundStudyReach:
+                            # Can we capture it?
+                            if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInput.value():
+                                secondPassFishes += 1
+                                fishPopulation[k].SetRecaughtStat('NO TAG')
+                                if fishPopulation[k].tagged == 1:
+                                    recapturedTaggedFish += 1
+                                    fishPopulation[k].SetRecaughtStat('YES')
+                    # Do this second scenario if sample two has different capture variability from first capture sample:
+                    elif self.checkBoxCaptureVary.isChecked():
+                        # Check if it's in the sub reach in the first place:
+                        if lowerBoundStudyReach <= fishPopulation[j].GetSubReachPos() <= upperBoundStudyReach:
+                            # Can we capture it?
+                            if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInputVaryTwo.value():
+                                secondPassFishes += 1
+                                fishPopulation[k].SetRecaughtStat('NO TAG')
+                                if fishPopulation[k].tagged == 1:
+                                    recapturedTaggedFish += 1
+                                    fishPopulation[k].SetRecaughtStat('YES')
+                    # Do this third scenario if fish has random capture probability as well:
+                    elif self.checkBoxCaptureRandomPerFish.isChecked():
+                        # Check if it's in the sub reach in the first place:
+                        if lowerBoundStudyReach <= fishPopulation[j].GetSubReachPos() <= upperBoundStudyReach:
+                            # Can we capture it?
+                            randomCaptureProbabilityRoll = np.random.rand(1)
+                            if fishPopulation[k].captureProbQTwo <= randomCaptureProbabilityRoll[0]:
+                                secondPassFishes += 1
+                                fishPopulation[k].SetRecaughtStat('NO TAG')
+                                if fishPopulation[k].tagged == 1:
+                                    recapturedTaggedFish += 1
+                                    fishPopulation[k].SetRecaughtStat('YES')
+
+            # OPEN POPULATION SCENARIO
+            elif openPopulation and not closedPopulation:
+                # Mortality an option?
+                if fishDeath[k] <= self.openPopulationMoralityInput.value():
+                    # Kill the fish:
+                    fishPopulation[k].SetMortality(0)
+
+                # MOVEMENT:
+                migrationDistance = self.migrationDistanceBox.value()
+                highBoundMovementRange = fishPopulation[k].GetSubReachPos() + (REACH_SIZE * migrationDistance)
+                # https://www.geeksforgeeks.org/scipy-stats-beta-python/
+                betaX = np.linspace(0, 1, 100)
+                y1 = beta.pdf(betaX, BETA_DISTRIBUTION, BETA_DISTRIBUTION)
+                # lowBoundMovementRange = fishPopulation[k].GetSubReachPos() - (REACH_SIZE * self.migrationDistanceBox.value())
+                # highBoundMovementRange = fishPopulation[k].GetSubReachPos() + (REACH_SIZE * self.migrationDistanceBox.value())
+                # First 1/3 of area: D (downstream),  Second 1/3 of area: C (central), Third 1/3 of area: U (upstream)
+                correction = self.migrationRateBox.value() - 0.5
+                point = np.random.randint(0, len(betaX))
+                counter = 0
+                while point in pointHolder or counter <= 100:
+                    point = np.random.randint(0, len(betaX))
+                    counter += 1
+                    if counter == 100:
+                        pointHolder.clear()
+
+                if betaX[point] + correction < 0:
+                    if (y1[point] + REACH_SIZE * migrationDistance - (BETA_DISTRIBUTION / 2)) > highBoundMovementRange:
+                        fishMove = highBoundMovementRange
+                        fishPopulation[k].SetMigrationDistance(-fishMove)
+                        fishPopulation[k].SetSubReachPosTwo(fishPopulation[k].GetSubReachPos() - fishMove)
+                    else:
+                        fishMove = y1[point] + REACH_SIZE * migrationDistance - (BETA_DISTRIBUTION / 2)
+                        fishPopulation[k].SetMigrationDistance(-fishMove)
+                        fishPopulation[k].SetSubReachPosTwo(fishPopulation[k].GetSubReachPos() - fishMove)
+                elif betaX[point] + correction >= 0:
+                    if (y1[point] + REACH_SIZE * migrationDistance - (BETA_DISTRIBUTION / 2)) > highBoundMovementRange:
+                        fishMove = highBoundMovementRange
+                        fishPopulation[k].SetMigrationDistance(fishMove)
+                        fishPopulation[k].SetSubReachPosTwo(fishPopulation[k].GetSubReachPos() + fishMove)
+                    else:
+                        fishMove = y1[point] + REACH_SIZE * migrationDistance - (BETA_DISTRIBUTION / 2)
+                        fishPopulation[k].SetMigrationDistance(fishMove)
+                        fishPopulation[k].SetSubReachPosTwo(fishPopulation[k].GetSubReachPos() + fishMove)
+
+                # Second scenario: varied sub reach parameter:
+                if self.checkBoxVariedSubreach.isChecked():
+                    # Do this first scenario if there is equal probability between the two samples:
+                    if self.checkBoxCaptureEqual.isChecked():
+                        # Check if it's in the sub reach in the first place:
+                        if lowerBoundStudyReach <= fishPopulation[k].GetSubReachPosTwo() <= upperBoundStudyReach:
+                            # Can't capture a dead fish:
+                            if fishPopulation[k].GetMortality() == 1:
+                                # Can we capture it?
+                                if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInput.value():
+                                    secondPassFishes += 1
+                                    fishPopulation[k].SetRecaughtStat('NO TAG')
+                                    if fishPopulation[k].tagged == 1:
+                                        recapturedTaggedFish += 1
+                                        fishPopulation[k].SetRecaughtStat('YES')
+                    # Do this second scenario if sample two has different capture variability from first capture sample:
+                    elif self.checkBoxCaptureVary.isChecked():
+                        # Check if it's in the sub reach in the first place:
+                        if lowerBoundStudyReach <= fishPopulation[k].GetSubReachPosTwo() <= upperBoundStudyReach:
+                            # Can't capture a dead fish:
+                            if fishPopulation[k].GetMortality() == 1:
+                                # Can we capture it?
+                                if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInputVaryTwo.value():
+                                    secondPassFishes += 1
+                                    fishPopulation[k].SetRecaughtStat('NO TAG')
+                                    if fishPopulation[k].tagged == 1:
+                                        recapturedTaggedFish += 1
+                                        fishPopulation[k].SetRecaughtStat('YES')
+                    # Do this third scenario if fish has random capture probability as well:
+                    elif self.checkBoxCaptureRandomPerFish.isChecked():
+                        # Check if it's in the sub reach in the first place:
+                        if lowerBoundStudyReach <= fishPopulation[k].GetSubReachPosTwo() <= upperBoundStudyReach:
+                            # Can't capture a dead fish:
+                            if not fishPopulation[k].GetMortality() == 0:
+                                # Can we capture it?
+                                randomCaptureProbabilityRoll = np.random.rand(1)
+                                if fishPopulation[k].captureProbQTwo <= randomCaptureProbabilityRoll[0]:
+                                    secondPassFishes += 1
+                                    fishPopulation[k].SetRecaughtStat('NO TAG')
+                                    if fishPopulation[k].tagged == 1:
+                                        recapturedTaggedFish += 1
+                                        fishPopulation[k].SetRecaughtStat('YES')
+        # End Second Capture Pass
+
+        # Estimation formula
+        estimatedSampleSizeN = (((firstPassMarkedFishes + 1) * (secondPassFishes + 1)) / (recapturedTaggedFish + 1))
+
+        # lockOne.acquire()
+        simulationResult.append(estimatedSampleSizeN)
+        # lockOne.release()
+        # ######## START RAW DATA SAVING, ALLOWS USER TO VIEW RESULTS OF EACH SIMULATION ######################### #
+        # Put this test result in a list for raw  data viewing:
         global testResultsArray
-        thisSimulation = SimulationParameters(numTrials, arrayResult.mean(), populationSize, testResultsArray)
-        thisSimulation.SetParameterString(populationType + "\n" + captureProbabilityString + "\n" + captureProbabilityType + "\n" + tagLossType + "\n" \
-                                          + subReachType + "\n" + migrationString)
-        simulationSaves.append(thisSimulation)
-
-        # Add this to the data log:
-        self.loadSimulationNumberInput.addItem(str(len(simulationSaves)))
-
-        # Re-enable simulations
-        self.runSimulationButton.setEnabled(True)
-        # Graph:
-        # count number in each bin
-        bins = np.linspace(min(simulationResult), max(simulationResult))
-        hist, _ = np.histogram(simulationResult, bins)
-        plt.figure(figsize=[10, 8])
-        # plt.bar(bin_edges[:-1], hist, width=0.5, color='#0504aa', alpha=0.7)
-        plt.bar(bins[:-1], hist, label=str(numTrials) + ' trials', width=1)
-        # plt.plot(bins[:-1], hist, 'r-', lw=5)
-        plt.axvline(populationSize, color='g', linestyle="dashed", lw=2, label=str('True Population Size'))
-        plt.axvline(arrayResult.mean(), color='r', lw=2, label=str('Simulation Mean'))
-        plt.xlim(min(bins), max(bins))
-        plt.grid(axis='y', alpha=0.75)
-        plt.xlabel('Population Estimate\n Mean Population Estimation = ' + str('{number:.{digits}f}'.format(number=arrayResult.mean(), digits=2)), fontsize=15)
-        plt.ylabel('Frequency', fontsize=15)
-        plt.xticks(fontsize=15)
-        plt.yticks(fontsize=15)
-        plt.ylabel('Frequency', fontsize=15)
-        plt.title('Population Estimate Simulation N = ' + str(populationSize), fontsize=15)
-        plt.legend(loc='best')
-        plt.show()
-
-    #################################################################################
-    # Multi-thread Worker: Set Connections, then run
-    #################################################################################
-    def threadSetAndExecute(self):
-        worker = Worker(self.threadExecute, "placeholderArgument1", "placeholderArgument2")
-        worker.signals.result.connect(self.threadResult)
-        worker.signals.finished.connect(self.threadComplete)
-        worker.signals.progress.connect(self.threadProgress)
-
-        # Execute thread
-        self.threadpool.start(worker)
-
-    #################################################################################
-    # Simulation MULTIPROCESS / MULTI-THREADING STYLE
-    #################################################################################
-    def simulateMulti(self):
-        self.threadSetAndExecute()
-
-    #################################################################################
-    # Simulation and then plot histogram
-    #################################################################################
-    def simulateAndPlot(self):
-        self.runSimulationButton.setEnabled(False)
-        self.simulationParameterPrint.clear()
-        self.simulateMulti()
-
-        # Declare array for results:
-        simulationResults = []
-        # start_time = time.time()
-        # arrayResult = self.simulate(simulationResults)
-        # print("--- %s seconds ---" % (time.time() - start_time))
-
-        # Graph:
-        # count number in each bin
-        # bins = np.linspace(min(simulationResults), max(simulationResults))
-        # hist, _ = np.histogram(simulationResults, bins)
-        # plt.figure(figsize=[10, 8])
-        # plt.bar(bin_edges[:-1], hist, width=0.5, color='#0504aa', alpha=0.7)
-        # plt.bar(bins[:-1], hist, label=str(numTrials) + ' trials', width=1)
-        # plt.plot(bins[:-1], hist, 'r-', lw=5)
-        # plt.axvline(populationSize, color='g', linestyle="dashed", lw=2, label=str('True Population Size'))
-        # plt.axvline(arrayResult.mean(), color='r', lw=2, label=str('Simulation Mean'))
-        # plt.xlim(min(bins), max(bins))
-        # plt.grid(axis='y', alpha=0.75)
-        # plt.xlabel('Population Estimate\n Mean Population Estimation = ' + str('{number:.{digits}f}'.format(number=arrayResult.mean(), digits=2)), fontsize=15)
-        # plt.ylabel('Frequency', fontsize=15)
-        # plt.xticks(fontsize=15)
-        # plt.yticks(fontsize=15)
-        # plt.ylabel('Frequency', fontsize=15)
-        # plt.title('Population Estimate Simulation N = ' + str(populationSize), fontsize=15)
-        # plt.legend(loc='best')
-        # plt.show()
-        # https://www.datacamp.com/community/tutorials/histograms-matplotlib
-        # https://www.youtube.com/watch?time_continue=79&v=Z2zUGmqIDto
-
-        # Update simulation array max input in combobox:
-
-    #################################################################################
-    # SIMULATION - TAB TWO
-    #################################################################################
-    def simulateFishes(self):
-
-        # QMessageBox.information(self, "A Good Msage", "Success. Results shown in the results box.")
-
-        # Get Population and whether it is a closed population or open population
-        self.getPopulationParameter()
-        # Get Capture Probability for the Samples
-        self.getCaptureProbabilityParameter()
-        # Get Tag Loss True/False
-        self.getTagLossParameter()
-        # Get SubReach Size
-        self.getSubReachSizeParameter()
-        # Get Number of Trials
-        self.getNumTrials()
-        # Enable Save Button
-        self.saveResultsButton.setEnabled(True)
-        self.refreshResultsButton.setEnabled(True)
-        self.clearDataButton.setEnabled(True)
-        self.viewImageButton.setEnabled(True)
-        self.populationGraphCheckBox.setEnabled(True)
-        # Simulate and plot
-        self.simulateAndPlot()
+        if i == 0:
+            testResult = TestResults(populationSize, estimatedSampleSizeN, firstPassMarkedFishes, secondPassFishes, recapturedTaggedFish, fishPopulation)
+            # lockTwo.acquire()
+            testResultsArray = [testResult]
+            # lockTwo.release()
+        else:
+            testResult = TestResults(populationSize, estimatedSampleSizeN, firstPassMarkedFishes, secondPassFishes, recapturedTaggedFish, fishPopulation)
+            # lockTwo.acquire()
+            testResultsArray.insert(i, testResult)
+            # lockTwo.release()
 
 
 #################################################################################
