@@ -13,13 +13,11 @@ import time
 import traceback
 import concurrent.futures
 import multiprocessing
-
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from MainWindow import Ui_MainWindow
 import numpy as np
-
 # https://stackoverflow.com/questions/27147300/matplotlib-tcl-asyncdelete-async-handler-deleted-by-the-wrong-thread/29172195#29172195
 import matplotlib
 matplotlib.use('TkAgg')
@@ -857,7 +855,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     #################################################################################
     # Multi-processing .....
     #################################################################################
-    def threadExecute(self, a, b, progress_callback):
+    def threadExecuteTwo(self, a, b, progress_callback):
         global simulationResult
         simulationResult = []
         lock1 = multiprocessing.Lock()
@@ -883,16 +881,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     #################################################################################
     # Multi-thread Worker: Function to execute
     #################################################################################
-    def threadExecuteTwo(self, a, b, progress_callback):
+    def threadExecute(self, a, b, progress_callback):
 
         # progress_callback.emit(n*100/4)
         # Start multiprocessing:
         global simulationResult
         simulationResult = []
         start_time = time.time()
+        counter = 0
         with concurrent.futures.ProcessPoolExecutor() as executor:
-            results = [executor.submit(self.simulateMultiProcStyle(simulationResult, i), i) for i in range(numTrials)]
+            results = [executor.submit(self.simulateMultiProcStyleNoLock(simulationResult, i), i) for i in range(numTrials)]
+
         print("--- %s seconds ---" % (time.time() - start_time))
+
         # Goes to threadResult function`
         return "Done."
 
@@ -922,7 +923,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.simulationParameterPrint.append(migrationString)
 
         # Add the overall summary for this result to the saved array for all simulations
-        global testResultsArray
         thisSimulation = SimulationParameters(numTrials, arrayResult.mean(), populationSize, testResultsArray)
         thisSimulation.SetParameterString(populationType + "\n" + captureProbabilityString + "\n" + captureProbabilityType + "\n" + tagLossType + "\n" \
                                           + subReachType + "\n" + migrationString)
@@ -933,13 +933,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # Re-enable simulations
         self.runSimulationButton.setEnabled(True)
-        self.progressBar.setEnabled(False)
+        self.progressBar.setVisible(False)
 
     #################################################################################
     # Multi-thread Worker: Set Connections, then run
     #################################################################################
-    def threadSetAndExecute(self):
-        worker = Worker(self.threadExecute, "placeholderArgument1", "placeholderArgument2")
+    def threadSetAndExecute(self, a):
+        worker = Worker(self.threadExecute, a, "placeholderArgument2")
         worker.signals.result.connect(self.threadResult)
         worker.signals.finished.connect(self.threadComplete)
         worker.signals.progress.connect(self.threadProgress)
@@ -950,8 +950,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     #################################################################################
     # Simulation MULTIPROCESS / MULTI-THREADING STYLE
     #################################################################################
-    def simulateMulti(self):
-        self.threadSetAndExecute()
+    def simulateMulti(self, a):
+        self.threadSetAndExecute(a)
 
     #################################################################################
     # SIMULATION - TAB TWO
@@ -989,8 +989,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.runSimulationButton.setEnabled(False)
         self.simulationParameterPrint.clear()
 
-        if self.checkBoxOpenPopulation and not self.checkBoxClosedPopulation:
-            self.simulateMulti()
+        if self.checkBoxOpenPopulation.isChecked() and not self.checkBoxClosedPopulation.isChecked():
+            self.simulateMulti(1)
         else:
             # Declare array for results:
             simulationResults = []
@@ -1335,7 +1335,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 testResultsArray = [testResult]
             else:
                 testResult = TestResults(populationSize, estimatedSampleSizeN, firstPassMarkedFishes, secondPassFishes, recapturedTaggedFish, fishPopulation)
-                testResultsArray.insert(i, testResult)
+                testResultsArray.append(testResult)
 
         # Create an np array for the results:
         arrayResult = np.array(simulationResults)
@@ -1356,7 +1356,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
     #################################################################################
     # Multi-thread Worker: Simulation in multiprocess
     #################################################################################
-    def simulateMultiProcStyle(self, simulationResult, i):
+    def simulateMultiProcStyleNoLock(self, simulationResult, i):
         # Be able to save data for each simulation:
         # Generate random numbers for capture probability for first and second catch:
         if self.checkBoxClosedPopulation.isChecked():
@@ -1411,6 +1411,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         for j in range(len(qCatchValue)):
             # ############################# If sub reach is not a factor: ############################# #
             if self.checkBoxNoSubreach.isChecked():
+                checkBoxNoSubReach = True
+                checkBoxVariedSubReach = False
                 # Do the first scenario if there is equal or varying probability between samples:
                 if self.checkBoxCaptureVary.isChecked() or self.checkBoxCaptureEqual.isChecked():
                     if fishPopulation[j].captureProbQ <= self.captureProbabilityInput.value():
@@ -1434,6 +1436,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # ############################# End the no sub reach parameter ############################# #
             # If sub reach is a factor, catch only those in study
             elif self.checkBoxVariedSubreach.isChecked():
+                checkBoxNoSubReach = False
+                checkBoxVariedSubReach = True
                 # Do the first scenario if there is equal or varying probability between samples:
                 if self.checkBoxCaptureVary.isChecked() or self.checkBoxCaptureEqual.isChecked():
                     # Capture only if the fish is in the range:
@@ -1485,7 +1489,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # CLOSED POPULATION:
             if closedPopulation and not openPopulation:
                 # First scenario: no sub reach parameter:
-                if self.checkBoxNoSubreach.isChecked():
+                if checkBoxNoSubReach and not checkBoxVariedSubReach:
                     # Do this first scenario if there is equal probability between the two samples:
                     if self.checkBoxCaptureEqual.isChecked():
                         if fishPopulation[k].captureProbQTwo <= self.captureProbabilityInput.value():
@@ -1518,7 +1522,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                                     recapturedTaggedFish += 1
                                     fishPopulation[k].SetRecaughtStat('YES')
                 # Second scenario: varied sub reach parameter:
-                elif self.checkBoxVariedSubreach.isChecked():
+                elif checkBoxVariedSubReach and not checkBoxNoSubReach:
                     # Do this first scenario if there is equal probability between the two samples:
                     if self.checkBoxCaptureEqual.isChecked():
                         # Check if it's in the sub reach in the first place, we use initial position as there is no
@@ -1971,6 +1975,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 # MAIN FUNCTION
 #################################################################################
 if __name__ == "__main__":
+    from multiprocessing import freeze_support
+    freeze_support()
+
     app = QApplication([])
     ui = MainWindow()
     sys.exit(app.exec_())
