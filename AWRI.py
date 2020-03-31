@@ -13,6 +13,8 @@ import time
 import traceback
 import concurrent.futures
 import multiprocessing
+from pathlib import Path
+
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -124,6 +126,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.populationOption = QButtonGroup()
         self.captureProbabilityOption = QButtonGroup()
         self.subReachSizeOption = QButtonGroup()
+        self.saveTrials = QButtonGroup()
 
         # Build the user interface
         self.setupUi(self)
@@ -151,7 +154,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.migrationRateBox.setVisible(False)
         self.migrationRateSlider.setVisible(False)
         self.migrationRateTitle.setVisible(False)
-        self.checkBoxShowDistribution.setVisible(False)
+        self.pushButtonShowDistribution.setVisible(False)
 
         self.subReachMovementOption.setEnabled(False)
         self.subReachMovementOption.setVisible(False)
@@ -162,6 +165,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.saveResultsButton.setEnabled(False)
         self.clearDataButton.setEnabled(False)
         self.loadSimulationNumberInput.setCurrentText('1')
+
+        self.saveSpecificTrialCheckBox.setChecked(True)
 
         self.progressBar.setVisible(False)
 
@@ -182,6 +187,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # Group Three: Sub-reach Size
         self.subReachSizeOption.addButton(self.checkBoxNoSubreach, 1)
         self.subReachSizeOption.addButton(self.checkBoxVariedSubreach, 2)
+
+        # Group Four: Save Option
+        self.saveTrials.addButton(self.saveSpecificTrialCheckBox, 1)
+        self.saveTrials.addButton(self.saveAllTrialsCheckBox, 2)
 
     #################################################################################
     # Connections for the button click
@@ -224,6 +233,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.checkBoxVariedSubreach.stateChanged.connect(self.SubReachOption)
 
         # Save Results Button
+        self.pushButtonShowDistribution.clicked.connect(self.betaDistribution)
         self.saveResultsButton.clicked.connect(self.SaveResults)
 
     #################################################################################
@@ -268,16 +278,22 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         migrationBiasStatus = self.migrationRateDescription.text() + ': ' + str(migrationBiasVal)
 
-        if self.checkBoxShowDistribution.isChecked():
-            correction = self.migrationRateBox.value() - 0.5
-            # https://www.geeksforgeeks.org/scipy-stats-beta-python/
-            betaX = np.linspace(0, 1, 100)
-            y1 = beta.pdf(betaX, BETA_DISTRIBUTION, BETA_DISTRIBUTION)
-            plt.plot(betaX + correction, y1 + REACH_SIZE * self.migrationDistanceBox.value() - (BETA_DISTRIBUTION / 2), "*")
-            plt.show()
+    #################################################################################
+    # Beta Distribution Graph
+    #################################################################################
+    def betaDistribution(self):
+        correction = self.migrationRateBox.value() - 0.5
+        # https://www.geeksforgeeks.org/scipy-stats-beta-python/
+        betaX = np.linspace(0, 1, 100)
+        # https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.beta.html
+        # beta.pdf(x,a,b) x = points; a = variable a and b = variable b
+        y1 = beta.pdf(betaX, BETA_DISTRIBUTION, BETA_DISTRIBUTION)
+        plt.plot(betaX + correction, y1 + REACH_SIZE * self.migrationDistanceBox.value() - (BETA_DISTRIBUTION / 2), "*")
+        plt.ylabel('Probability', fontsize=15)
+        plt.xlabel('x', fontsize=15)
+        plt.show()
 
-        #################################################################################
-
+    #################################################################################
     # Migration Distance (0 - 100 - 200 % ) of subreach slide:
     #################################################################################
     def MigrationDistanceSlider(self):
@@ -491,31 +507,100 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             plt.show()
 
     #################################################################################
+    # Checks File Path
+    #################################################################################
+    def CheckFile(self, path, i):
+        path = os.path.expanduser(path)
+        root, ext = os.path.splitext(os.path.expanduser(path))
+        dir = os.path.dirname(root)
+        fname = os.path.basename(root)
+        candidate = fname + ext
+        index = i
+        ls = set(os.listdir(dir))
+        # while candidate in ls:
+        candidate = "{}_{}{}".format(fname, index, ext)
+        return os.path.join(dir, candidate).replace("\\", "/")
+
+    #################################################################################
     # Save Results
     #################################################################################
     def SaveResults(self):
+
         path = QFileDialog.getSaveFileName(self, 'Save File', os.getenv('HOME'), "CSV Files(*.csv)")
-        if path[0] != '':
-            with open(path[0], 'w') as csv_file:
-                print('Saving file...')
-                writer = csv.writer(csv_file, dialect='excel', delimiter=',')
-                headers = []
-                for column in range(self.tableRawFishData.columnCount()):
-                    header = self.tableRawFishData.horizontalHeaderItem(column)
-                    if header is not None:
-                        headers.append(header.text())
-                    else:
-                        headers.append("Column " + str(column))
-                writer.writerow(headers)
-                for row in range(self.tableRawFishData.rowCount()):
-                    rowdata = []
+
+        # If for one trial:
+        if self.saveSpecificTrialCheckBox.isChecked():
+            if path[0] != '':
+                with open(path[0], 'w', newline='') as csv_file:
+                    print('Saving file...')
+                    writer = csv.writer(csv_file, dialect='excel', delimiter=',')
+                    headers = []
                     for column in range(self.tableRawFishData.columnCount()):
-                        item = self.tableRawFishData.item(row, column)
-                        if item is not None:
-                            rowdata.append(item.text())
+                        header = self.tableRawFishData.horizontalHeaderItem(column)
+                        if header is not None:
+                            headers.append(header.text())
                         else:
-                            rowdata.append('')
-                    writer.writerow(rowdata)
+                            headers.append("Column " + str(column))
+                    writer.writerow(headers)
+                    for row in range(self.tableRawFishData.rowCount()):
+                        rowdata = []
+                        for column in range(self.tableRawFishData.columnCount()):
+                            item = self.tableRawFishData.item(row, column)
+                            if item is not None:
+                                rowdata.append(item.text())
+                            else:
+                                rowdata.append('')
+                        writer.writerow(rowdata)
+            print('File generated.')
+
+        # If for all trials:
+        else:
+            # View Trial Results:
+            testResults = simulationSaves[int(self.loadSimulationNumberInput.currentText()) - 1].GetTestData()
+            newPath = os.path.splitext(path[0])[0]
+            for i in range(0, self.tableRawTestData.rowCount()):
+                # Get fish data for that specific test:
+                fishData = testResults[i].GetFishData()
+                # increment filename as needed
+                newPath = self.CheckFile(path[0], i)
+                # Show fish data:
+                self.tableRawFishData.setRowCount(0)
+                for itr in range(0, len(fishData)):
+                    numRows = self.tableRawFishData.rowCount()
+                    self.tableRawFishData.insertRow(numRows)
+                    self.tableRawFishData.setItem(numRows, 0, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishData[itr].GetCaptureProbability(), digits=2))))
+                    self.tableRawFishData.setItem(numRows, 1, QTableWidgetItem(str(fishData[itr].GetSubReachPos())))
+                    self.tableRawFishData.setItem(numRows, 2, QTableWidgetItem(str(fishData[itr].GetFishTag())))
+                    self.tableRawFishData.setItem(numRows, 3, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishData[itr].GetTagLoss(), digits=2))))
+                    self.tableRawFishData.setItem(numRows, 4, QTableWidgetItem(str(fishData[itr].GetMortality())))
+                    self.tableRawFishData.setItem(numRows, 5, QTableWidgetItem(str(fishData[itr].GetMigrationDistance())))
+                    self.tableRawFishData.setItem(numRows, 6, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishData[itr].GetCaptureProbabilityTwo(), digits=2))))
+                    self.tableRawFishData.setItem(numRows, 7, QTableWidgetItem(str(fishData[itr].GetSubReachPosTwo())))
+                    self.tableRawFishData.setItem(numRows, 8, QTableWidgetItem(str(fishData[itr].GetRecaughtStat())))
+
+                # Now we write the data
+                if newPath != '':
+                    with open(newPath, 'w', newline='') as csv_file:
+                        print('Saving file...')
+                        writer = csv.writer(csv_file, dialect='excel', delimiter=',')
+                        headers = []
+                        for column in range(self.tableRawFishData.columnCount()):
+                            header = self.tableRawFishData.horizontalHeaderItem(column)
+                            if header is not None:
+                                headers.append(header.text())
+                            else:
+                                headers.append("Column " + str(column))
+                        writer.writerow(headers)
+                        for row in range(self.tableRawFishData.rowCount()):
+                            rowdata = []
+                            for column in range(self.tableRawFishData.columnCount()):
+                                item = self.tableRawFishData.item(row, column)
+                                if item is not None:
+                                    rowdata.append(item.text())
+                                else:
+                                    rowdata.append('')
+                            writer.writerow(rowdata)
+                print('File generated.')
 
     #################################################################################
     # Open or Closed Population
@@ -533,7 +618,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.migrationRateBox.setVisible(False)
             self.migrationRateSlider.setVisible(False)
             self.migrationRateTitle.setVisible(False)
-            self.checkBoxShowDistribution.setVisible(False)
+            self.pushButtonShowDistribution.setVisible(False)
 
             self.checkBoxNoSubreach.setEnabled(True)
             self.checkBoxNoSubreach.setChecked(True)
@@ -549,7 +634,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             self.migrationRateBox.setVisible(True)
             self.migrationRateSlider.setVisible(True)
             self.migrationRateTitle.setVisible(True)
-            self.checkBoxShowDistribution.setVisible(True)
+            self.pushButtonShowDistribution.setVisible(True)
             self.checkBoxNoSubreach.setEnabled(False)
 
             self.checkBoxVariedSubreach.setChecked(True)
@@ -604,7 +689,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         plt.grid(axis='y', alpha=0.75)
         plt.xlabel('Population Estimate\n Mean Population Estimation = ' + str('{number:.{digits}f}'.format(number=template.GetOverallEstimatedPopulation(), digits=2)),
                    fontsize=15)
-        plt.ylabel('Frequency', fontsize=15)
         plt.xticks(fontsize=15)
         plt.yticks(fontsize=15)
         plt.ylabel('Frequency', fontsize=15)
@@ -639,9 +723,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # View Simulation Parameters:
         self.simulationReviewer.clear()
-        self.simulationReviewer.append('Mean Population estimated: ' + str(template.GetOverallEstimatedPopulation()))
+        self.simulationReviewer.append('Mean Population Estimated: ' + str('{number:.{digits}f}'.format(number=template.GetOverallEstimatedPopulation(), digits=0)))
         self.simulationReviewer.append('Actual Population size: ' + str(template.GetActualPopulation()))
-        self.simulationReviewer.append('Number of Trials:' + str(template.GetNumTrials()))
+        self.simulationReviewer.append('Number of Trials: ' + str(template.GetNumTrials()))
         self.simulationReviewer.append(template.GetParameters())
 
         # View Trial Results:
@@ -651,7 +735,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         for trials in range(0, len(testResults)):
             numRows = self.tableRawTestData.rowCount()
             self.tableRawTestData.insertRow(numRows)
-            self.tableRawTestData.setItem(numRows, 0, QTableWidgetItem(str('{number:.{digits}f}'.format(number=testResults[trials].GetEstimatedPopulation(), digits=4))))
+            self.tableRawTestData.setItem(numRows, 0, QTableWidgetItem(str('{number:.{digits}f}'.format(number=testResults[trials].GetEstimatedPopulation(), digits=0))))
             self.tableRawTestData.setItem(numRows, 1, QTableWidgetItem(str(testResults[trials].GetFirstPassCaught())))
             self.tableRawTestData.setItem(numRows, 2, QTableWidgetItem(str(testResults[trials].GetSecondPassCaught())))
             self.tableRawTestData.setItem(numRows, 3, QTableWidgetItem(str(testResults[trials].GetSecondPassRecaught())))
@@ -677,6 +761,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         for idx in self.tableRawTestData.selectionModel().selectedIndexes():
             rowNum = idx.row()
 
+            self.tableRawTestData.rowCount()
+
         # Get fish data for that specific test:
         fishData = testResults[rowNum].GetFishData()
 
@@ -685,13 +771,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             numRows = self.tableRawFishData.rowCount()
 
             self.tableRawFishData.insertRow(numRows)
-            self.tableRawFishData.setItem(numRows, 0, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishData[itr].GetCaptureProbability(), digits=4))))
+            self.tableRawFishData.setItem(numRows, 0, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishData[itr].GetCaptureProbability(), digits=2))))
             self.tableRawFishData.setItem(numRows, 1, QTableWidgetItem(str(fishData[itr].GetSubReachPos())))
             self.tableRawFishData.setItem(numRows, 2, QTableWidgetItem(str(fishData[itr].GetFishTag())))
-            self.tableRawFishData.setItem(numRows, 3, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishData[itr].GetTagLoss(), digits=4))))
+            self.tableRawFishData.setItem(numRows, 3, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishData[itr].GetTagLoss(), digits=2))))
             self.tableRawFishData.setItem(numRows, 4, QTableWidgetItem(str(fishData[itr].GetMortality())))
             self.tableRawFishData.setItem(numRows, 5, QTableWidgetItem(str(fishData[itr].GetMigrationDistance())))
-            self.tableRawFishData.setItem(numRows, 6, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishData[itr].GetCaptureProbabilityTwo(), digits=4))))
+            self.tableRawFishData.setItem(numRows, 6, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishData[itr].GetCaptureProbabilityTwo(), digits=2))))
             self.tableRawFishData.setItem(numRows, 7, QTableWidgetItem(str(fishData[itr].GetSubReachPosTwo())))
             self.tableRawFishData.setItem(numRows, 8, QTableWidgetItem(str(fishData[itr].GetRecaughtStat())))
 
@@ -731,7 +817,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             estimatedSampleSizeN = (((markFirstCatchM + 1) * (captureSecondCatchC + 1)) / (markSecondCatchR + 1)) - 1
             # Date and Time set:
             dateNow = QTime.currentTime().toString()
-            self.resultScreenOne.append(dateNow + " - Estimated Fish Population: " + str(estimatedSampleSizeN))
+            self.resultScreenOne.append(dateNow + " - Estimated Fish Population: " + str('{number:.{digits}f}'.format(number=estimatedSampleSizeN, digits=0)))
             # QMessageBox.information(self, "A Good Message", "Success. Results shown in the results box.")
 
     #################################################################################
@@ -770,16 +856,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         if self.checkBoxCaptureEqual.isChecked():
             captureProbabilityFish = self.captureProbabilityInput.value()
             captureProbabilityString = 'Capture Probability q = ' + str(captureProbabilityFish)
-            captureProbabilityType = "Equal Capture Probability for all samples."
+            captureProbabilityType = "Equal capture probability for all samples"
         if self.checkBoxCaptureVary.isChecked():
             captureProbabilityFish = self.captureProbabilityInput.value()
             captureProbabilityFishTwo = self.captureProbabilityInputVaryTwo.value()
-            captureProbabilityString = 'Capture Probability for First Pass: q = ' + str(captureProbabilityFish) \
-                                       + 'Capture Probability for Second Pass: q = ' + str(captureProbabilityFishTwo)
-            captureProbabilityType = "Capture Probability Varying Per Sample."
+            captureProbabilityString = 'Capture probability for first pass: q = ' + str(captureProbabilityFish) \
+                                       + 'Capture probability for second pass: q = ' + str(captureProbabilityFishTwo)
+            captureProbabilityType = "Capture probability varying per sample."
         if self.checkBoxCaptureRandomPerFish.isChecked():
-            captureProbabilityString = 'CaptureProbability: Completely Random'
-            captureProbabilityType = "Capture Probability Completely Random per Fish."
+            captureProbabilityString = 'Capture Probability: Completely random'
+            captureProbabilityType = "Capture Probability Completely random per fish."
 
     #################################################################################
     # Get Fish population parameter as to whether it is an open or closed population.
@@ -808,7 +894,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # All fishes are fair game to get caught
             subReachType = "No Subreach Parameter"
         elif self.checkBoxVariedSubreach.isChecked():
-            subReachType = "Varied Subreach Size"
+            subReachType = "Varied Subreach Size: " + str(self.subReachMovementOption.value()) + "% of subreach"
 
     #################################################################################
     # Get SubReach Parameter and see if it is normal sized or extended.
@@ -930,10 +1016,19 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # Add this to the data log:
         self.loadSimulationNumberInput.addItem(str(len(simulationSaves)))
-
         # Re-enable simulations
         self.runSimulationButton.setEnabled(True)
         self.progressBar.setVisible(False)
+
+        # Thread Complete:
+        QMessageBox.about(self, "Status Message", "Simulation Complete. Press OK to display results.")
+        # Load the data
+        self.loadSimulationNumberInput.setCurrentText(str(self.loadSimulationNumberInput.count()))
+        self.tabBox.setCurrentIndex(2)
+        self.RefreshResults()
+        # Allow user to save data
+        self.saveAllTrialsCheckBox.setEnabled(True)
+        self.saveSpecificTrialCheckBox.setEnabled(True)
 
     #################################################################################
     # Multi-thread Worker: Set Connections, then run
@@ -1000,35 +1095,46 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
             # Print out results
             meanResult = arrayResult.mean()
-            self.simulationParameterPrint.append('Mean Population estimation: ' + str('{number:.{digits}f}'.format(number= meanResult, digits=4)))
+            self.simulationParameterPrint.append('Mean Population Estimation: ' + str('{number:.{digits}f}'.format(number= meanResult, digits=0)))
             # Print out Parameters
-            self.simulationParameterPrint.append("Actual Population Size: " + str(populationSize) + "\tType: " + populationType)
-            self.simulationParameterPrint.append(captureProbabilityString + "\tType: "
+            self.simulationParameterPrint.append("Actual Population Size: " + str(populationSize) + "\nType: " + populationType)
+            self.simulationParameterPrint.append(captureProbabilityString + "\nType: "
                                                  + captureProbabilityType)
-            self.simulationParameterPrint.append(tagLossType + "\t\tSubreach Type: " + subReachType)
+            self.simulationParameterPrint.append(tagLossType + "\nSubreach Type: " + subReachType)
             self.simulationParameterPrint.append("Number of Trials: " + str(numTrials))
             self.simulationParameterPrint.append(migrationString)
 
+            QMessageBox.about(self, "Status Message", "Simulation Complete. Press OK to display results.")
+            # Load the data
+            self.loadSimulationNumberInput.setCurrentText(str(self.loadSimulationNumberInput.count()))
+            self.tabBox.setCurrentIndex(2)
+            self.RefreshResults()
+            # Save data
+            self.saveAllTrialsCheckBox.setEnabled(True)
+            self.saveSpecificTrialCheckBox.setEnabled(True)
+
             # Graph:
             # count number in each bin
-            bins = np.linspace(min(simulationResults), max(simulationResults))
-            hist, _ = np.histogram(simulationResults, bins)
-            plt.figure(figsize=[10, 8])
+            # bins = np.linspace(min(simulationResults), max(simulationResults))
+            # hist, _ = np.histogram(simulationResults, bins)
+            # plt.figure(figsize=[10, 8])
             # plt.bar(bin_edges[:-1], hist, width=0.5, color='#0504aa', alpha=0.7)
-            plt.bar(bins[:-1], hist, label=str(numTrials) + ' trials', width=1)
+            # plt.bar(bins[:-1], hist, label=str(numTrials) + ' trials', width=1)
             # .plot(bins[:-1], hist, 'r-', lw=5)
-            plt.axvline(populationSize, color='g', linestyle="dashed", lw=2, label=str('True Population Size'))
-            plt.axvline(meanResult, color='r', lw=2, label=str('Simulation Mean'))
-            plt.xlim(min(bins), max(bins))
-            plt.grid(axis='y', alpha=0.75)
-            plt.xlabel('Population Estimate\n Mean Population Estimation = ' + str('{number:.{digits}f}'.format(number= meanResult, digits=2)), fontsize=15)
-            plt.ylabel('Frequency', fontsize=15)
-            plt.xticks(fontsize=15)
-            plt.yticks(fontsize=15)
-            plt.ylabel('Frequency', fontsize=15)
-            plt.title('Population Estimate Simulation N = ' + str(populationSize), fontsize=15)
-            plt.legend(loc='best')
-            plt.show()
+            # plt.axvline(populationSize, color='g', linestyle="dashed", lw=2, label=str('True Population Size'))
+            # plt.axvline(meanResult, color='r', lw=2, label=str('Simulation Mean'))
+            # plt.xlim(min(bins), max(bins))
+            # plt.grid(axis='y', alpha=0.75)
+            # plt.xlabel('Population Estimate\n Mean Population Estimation = ' + str('{number:.{digits}f}'.format(number= meanResult, digits=2)), fontsize=15)
+            # plt.ylabel('Frequency', fontsize=15)
+            # plt.xticks(fontsize=15)
+            # plt.yticks(fontsize=15)
+            # plt.ylabel('Frequency', fontsize=15)
+            # plt.title('Population Estimate Simulation N = ' + str(populationSize), fontsize=15)
+            # plt.legend(loc='best')
+            # plt.show()
+
+
             # https://www.datacamp.com/community/tutorials/histograms-matplotlib
             # https://www.youtube.com/watch?time_continue=79&v=Z2zUGmqIDto
 
@@ -1347,7 +1453,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         # Add this to the data log:
         self.loadSimulationNumberInput.addItem(str(len(simulationSaves)))
-
         self.runSimulationButton.setEnabled(True)
         self.progressBar.setVisible(False)
 
