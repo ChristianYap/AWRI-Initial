@@ -72,7 +72,7 @@ class TestResults:
         self.fishData.append(fishData)
 
     #################################################################################
-    # GETTER FOR ESTIMATED POPULATION
+    # SETTER FOR ESTIMATED POPULATION
     #################################################################################
     def GetActualPopulation(self):
         return self.actualPopulation

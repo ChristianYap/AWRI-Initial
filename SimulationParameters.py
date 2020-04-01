@@ -10,6 +10,12 @@ class SimulationParameters:
     estimatedPopulation: float
     actualPopulation: int
     testData = []
+    median: float
+    skew: float
+    firstQuart: float
+    secondQuart: float
+    thirdQuart: float
+    fourthQuart: float
 
     #################################################################################
     # FISH CONSTRUCTOR
@@ -63,6 +69,42 @@ class SimulationParameters:
         self.testData = testData
 
     #################################################################################
+    # Setter FOR Median
+    #################################################################################
+    def SetMedian(self, median):
+       self.median = median
+
+    #################################################################################
+    # SETTER FOR Skewness
+    #################################################################################
+    def SetSkew(self, skew):
+        self.skew = skew
+
+    #################################################################################
+    # SETTER FOR first Quartile
+    #################################################################################
+    def SetFirstQuart(self, firstQuart):
+        self.firstQuart = firstQuart
+
+    #################################################################################
+    # SETTER FOR second Quartile
+    #################################################################################
+    def SetSecondQuart(self, secondQuart):
+        self.secondQuart = secondQuart
+
+    #################################################################################
+    # SETTER FOR third Quartile
+    #################################################################################
+    def SetThirdQuart(self, thirdQuart):
+        self.thirdQuart = thirdQuart
+
+    #################################################################################
+    # SETTER FOR fourth Quartile
+    #################################################################################
+    def SetFourthQuart(self, fourthQuart):
+        self.fourthQuart = fourthQuart
+
+    #################################################################################
     # GETTER FOR NUMBER OF TRIALS DONE
     #################################################################################
     def GetNumTrials(self):
@@ -97,3 +139,39 @@ class SimulationParameters:
     #################################################################################
     def GetTestData(self):
         return self.testData
+
+    #################################################################################
+    # GETTER FOR Median
+    #################################################################################
+    def GetMedian(self):
+        return self.median
+
+    #################################################################################
+    # GETTER FOR Skewness
+    #################################################################################
+    def GetSkew(self):
+        return self.skew
+
+    #################################################################################
+    # GETTER FOR first Quartile
+    #################################################################################
+    def GetFirstQuart(self):
+        return self.firstQuart
+
+    #################################################################################
+    # GETTER FOR second Quartile
+    #################################################################################
+    def GetSecondQuart(self):
+        return self.secondQuart
+
+    #################################################################################
+    # GETTER FOR third Quartile
+    #################################################################################
+    def GetThirdQuart(self):
+        return self.thirdQuart
+
+    #################################################################################
+    # GETTER FOR fourth Quartile
+    #################################################################################
+    def GetFourthQuart(self):
+        return self.fourthQuart
