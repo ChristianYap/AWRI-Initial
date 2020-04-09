@@ -916,15 +916,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 numRows = self.tableRawFishData.rowCount()
                 self.tableRawFishData.insertRow(numRows)
 
+                # Capture Parameters:
                 fishDataCapOne = fishData[itr].GetCaptureProbability()
                 fishDataCapTwo = fishData[itr].GetCaptureProbabilityTwo()
                 self.tableRawFishData.setItem(numRows, 0, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishDataCapOne, digits=2))))
                 self.tableRawFishData.setItem(numRows, 6, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishDataCapTwo, digits=2))))
-                # Capture Parameters:
                 if simulationSaves[inputNumber].GetParamCaptureCategory() == 1:
                     if fishDataCapOne <= simulationSaves[inputNumber].GetParamCaptureOne():
-                        print(fishDataCapOne)
-                        print(simulationSaves[inputNumber].GetParamCaptureOne())
                         self.tableRawFishData.item(numRows, 0).setBackground(QColor(55, 174, 114))
                     if fishDataCapTwo <= simulationSaves[inputNumber].GetParamCaptureTwo():
                         self.tableRawFishData.item(numRows, 6).setBackground(QColor(55, 174, 114))
@@ -934,8 +932,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     if fishDataCapTwo <= fishData[itr].GetParameterCaptureTwo():
                         self.tableRawFishData.item(numRows, 6).setBackground(QColor(55, 174, 114))
 
-                # todo -
-                self.tableRawFishData.setItem(numRows, 1, QTableWidgetItem(str(fishData[itr].GetSubReachPos())))
+                # Subreach One:
+                subReachPosOne = fishData[itr].GetSubReachPos()
+                self.tableRawFishData.setItem(numRows, 1, QTableWidgetItem(str(subReachPosOne)))
+                if simulationSaves[inputNumber].GetBoundApplicable() == 1:
+                    if simulationSaves[inputNumber].GetParamLowBound() <= subReachPosOne <= simulationSaves[inputNumber].GetParamHighBound():
+                        self.tableRawFishData.item(numRows, 1).setBackground(QColor(55, 174, 114))
 
                 # Tag loss:
                 tagStatus = fishData[itr].GetFishTag()
@@ -950,8 +952,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 if mortalityStatus == 0:
                     self.tableRawFishData.item(numRows, 4).setBackground(QColor(223, 36, 36))
 
+                # Migration distance:
                 self.tableRawFishData.setItem(numRows, 5, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishData[itr].GetMigrationDistance(), digits=2))))
-                self.tableRawFishData.setItem(numRows, 7, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishData[itr].GetSubReachPosTwo(), digits=2))))
+
+                #Subreach two:
+                subReachPosTwo = fishData[itr].GetSubReachPosTwo()
+                self.tableRawFishData.setItem(numRows, 7, QTableWidgetItem(str('{number:.{digits}f}'.format(number=subReachPosTwo, digits=2))))
+                if simulationSaves[inputNumber].GetBoundApplicable() == 1:
+                    if simulationSaves[inputNumber].GetParamLowBound() <= subReachPosTwo <= simulationSaves[inputNumber].GetParamHighBound():
+                        self.tableRawFishData.item(numRows, 7).setBackground(QColor(55, 174, 114))
+
+                # Status:
                 self.tableRawFishData.setItem(numRows, 8, QTableWidgetItem(str(fishData[itr].GetRecaughtStat())))
         else:
             # Show fish data:
@@ -1242,6 +1253,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             thisSimulation.SetParamCaptureCategory(1)
             thisSimulation.SetParamCaptureOne(self.captureProbabilityInput.value())
             thisSimulation.SetParamCaptureTwo(self.captureProbabilityInputVaryTwo.value())
+        if self.checkBoxVariedSubreach.isChecked():
+            thisSimulation.SetBoundApplicable(1)
+            thisSimulation.SetParamLowBound(lowerBoundStudyReach)
+            thisSimulation.SetParamHighBound(upperBoundStudyReach)
 
         # Thread Complete:
         QMessageBox.about(self, "Status Message", "Simulation Complete. Press OK to display results.")
@@ -1468,6 +1483,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             # #################################### START SECOND CAPTURE ################################################# #
             for k in range(len(qCatchValueTwo)):
                 fishPopulation[k].SetCaptureProbabilityTwo(qCatchValueTwo[k])
+                fishPopulation[k].SetSubReachPosTwo(fishLocation[k])
                 # CLOSED POPULATION:
                 if self.checkBoxClosedPopulation.isChecked():
                     # First scenario: no sub reach parameter:
@@ -1687,6 +1703,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             thisSimulation.SetParamCaptureCategory(1)
             thisSimulation.SetParamCaptureOne(self.captureProbabilityInput.value())
             thisSimulation.SetParamCaptureTwo(self.captureProbabilityInputVaryTwo.value())
+
+        if self.checkBoxVariedSubreach.isChecked():
+            thisSimulation.SetBoundApplicable(1)
+            thisSimulation.SetParamLowBound(lowerBoundStudyReach)
+            thisSimulation.SetParamHighBound(upperBoundStudyReach)
 
         # Add this to the data log:
         self.loadSimulationNumberInput.addItem(str(len(simulationSaves)))

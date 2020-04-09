@@ -21,6 +21,9 @@ class SimulationParameters:
     paramCaptureCategory: int
     paramCaptureOne: float
     paramCaptureTwo: float
+    paramLowBound: float
+    paramHighBound: float
+    paramBoundsApply: int
 
     #################################################################################
     # FISH CONSTRUCTOR
@@ -30,6 +33,7 @@ class SimulationParameters:
         self.estimatedPopulation = -1
         self.actualPopulation = -1
         self.parameters = ''
+        self.paramBoundsApply = -1
         self.paramCaptureCategory = -1
 
     #################################################################################
@@ -43,6 +47,8 @@ class SimulationParameters:
         self.actualPopulation = actualPopulation
         self.testData = testData
         self.parameters = ''
+        self.paramBoundsApply = -1
+        self.paramCaptureCategory = -1
 
     #################################################################################
     # SETTER FOR STRING
@@ -127,6 +133,24 @@ class SimulationParameters:
     #################################################################################
     def SetParamCaptureTwo(self, paramCaptureTwo):
         self.paramCaptureTwo = paramCaptureTwo
+
+    #################################################################################
+    # SETTER FOR PARAMETER CATEGORY
+    #################################################################################
+    def SetBoundApplicable(self, paramBoundsApply):
+        self.paramBoundsApply = paramBoundsApply
+
+    #################################################################################
+    # SETTER FOR PARAMETER TESTING LOW BOUND
+    #################################################################################
+    def SetParamLowBound(self, paramLowBound):
+        self.paramLowBound = paramLowBound
+
+    #################################################################################
+    # SETTER FOR PARAMETER TESTING HIGH BOUND
+    #################################################################################
+    def SetParamHighBound(self, paramHighBound):
+        self.paramHighBound = paramHighBound
 
     #################################################################################
     # GETTER FOR NUMBER OF TRIALS DONE
@@ -217,3 +241,21 @@ class SimulationParameters:
     #################################################################################
     def GetParamCaptureCategory(self):
         return self.paramCaptureCategory
+
+    #################################################################################
+    # GETTER FOR PARAMETER TESTING LOW BOUND
+    #################################################################################
+    def GetParamLowBound(self):
+        return self.paramLowBound
+
+    #################################################################################
+    # GETTER FOR PARAMETER TESTING HIGH BOUND
+    #################################################################################
+    def GetParamHighBound(self):
+        return self.paramHighBound
+
+    #################################################################################
+    # GETTER FOR PARAMETER CATEGORY
+    #################################################################################
+    def GetBoundApplicable(self):
+        return self.paramBoundsApply
