@@ -17,6 +17,11 @@ class SimulationParameters:
     thirdQuart: float
     fourthQuart: float
 
+    # Testing:
+    paramCaptureCategory: int
+    paramCaptureOne: float
+    paramCaptureTwo: float
+
     #################################################################################
     # FISH CONSTRUCTOR
     #################################################################################
@@ -25,6 +30,7 @@ class SimulationParameters:
         self.estimatedPopulation = -1
         self.actualPopulation = -1
         self.parameters = ''
+        self.paramCaptureCategory = -1
 
     #################################################################################
     # FISH CONSTRUCTOR
@@ -105,6 +111,24 @@ class SimulationParameters:
         self.fourthQuart = fourthQuart
 
     #################################################################################
+    # SETTER FOR PARAMETER TESTING CATEGORY
+    #################################################################################
+    def SetParamCaptureCategory(self, paramCaptureCategory):
+        self.paramCaptureCategory = paramCaptureCategory
+
+    #################################################################################
+    # SETTER FOR PARAMETER TESTING CAP ONE
+    #################################################################################
+    def SetParamCaptureOne(self, paramCaptureOne):
+        self.paramCaptureOne = paramCaptureOne
+
+    #################################################################################
+    # SETTER FOR PARAMETER TESTING CAP TWO
+    #################################################################################
+    def SetParamCaptureTwo(self, paramCaptureTwo):
+        self.paramCaptureTwo = paramCaptureTwo
+
+    #################################################################################
     # GETTER FOR NUMBER OF TRIALS DONE
     #################################################################################
     def GetNumTrials(self):
@@ -175,3 +199,21 @@ class SimulationParameters:
     #################################################################################
     def GetFourthQuart(self):
         return self.fourthQuart
+
+    #################################################################################
+    # SETTER FOR PARAMETER TESTING CAP ONE
+    #################################################################################
+    def GetParamCaptureOne(self):
+        return self.paramCaptureOne
+
+    #################################################################################
+    # SETTER FOR PARAMETER TESTING CAP TWO
+    #################################################################################
+    def GetParamCaptureTwo(self):
+        return self.paramCaptureTwo
+
+    #################################################################################
+    # GETTER FOR PARAMETER TESTING CAP ONE
+    #################################################################################
+    def GetParamCaptureCategory(self):
+        return self.paramCaptureCategory

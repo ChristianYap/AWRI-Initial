@@ -501,14 +501,19 @@ class Ui_MainWindow(object):
         self.statusbar.setObjectName("statusbar")
         MainWindow.setStatusBar(self.statusbar)
         self.actionUser_Manual = QtWidgets.QAction(MainWindow)
+        self.actionUser_Manual.setCheckable(False)
         self.actionUser_Manual.setObjectName("actionUser_Manual")
         self.actionSave_Results = QtWidgets.QAction(MainWindow)
         self.actionSave_Results.setObjectName("actionSave_Results")
         self.actionExit = QtWidgets.QAction(MainWindow)
         self.actionExit.setObjectName("actionExit")
+        self.actionDebug_Mode = QtWidgets.QAction(MainWindow)
+        self.actionDebug_Mode.setCheckable(True)
+        self.actionDebug_Mode.setObjectName("actionDebug_Mode")
         self.menuMain.addAction(self.actionSave_Results)
         self.menuMain.addAction(self.actionExit)
         self.menuResults.addAction(self.actionUser_Manual)
+        self.menuResults.addAction(self.actionDebug_Mode)
         self.menubar.addAction(self.menuMain.menuAction())
         self.menubar.addAction(self.menuResults.menuAction())
 
@@ -621,7 +626,7 @@ class Ui_MainWindow(object):
         item = self.tableRawTestData.horizontalHeaderItem(3)
         item.setText(_translate("MainWindow", "Recatch"))
         self.saveAllTrialsCheckBox.setText(_translate("MainWindow", "Save all Trials in One File"))
-        self.saveSpecificTrialCheckBox.setText(_translate("MainWindow", "Save this specific trial"))
+        self.saveSpecificTrialCheckBox.setText(_translate("MainWindow", "Save a specific trial"))
         self.viewImageButton.setStatusTip(_translate("MainWindow", "Show the results in a histogram."))
         self.viewImageButton.setText(_translate("MainWindow", "View Histogram"))
         self.saveResultsButton.setStatusTip(_translate("MainWindow", "Save test results in the results screen."))
@@ -633,6 +638,7 @@ class Ui_MainWindow(object):
         self.actionUser_Manual.setText(_translate("MainWindow", "User Manual"))
         self.actionSave_Results.setText(_translate("MainWindow", "Save Results"))
         self.actionExit.setText(_translate("MainWindow", "Exit"))
+        self.actionDebug_Mode.setText(_translate("MainWindow", "Debug Mode"))
 
 
 if __name__ == "__main__":
