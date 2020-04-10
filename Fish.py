@@ -15,6 +15,10 @@ class Fish:
     migrationDistance: int
     reCaught: ''
 
+    # for testing:
+    ParameterVariedCaptureOne: float
+    ParameterVariedCaptureTwo: float
+
     #################################################################################
     # FISH CONSTRUCTOR
     #################################################################################
@@ -66,6 +70,9 @@ class Fish:
     def SetSubReachPosTwo(self, zone):
         self.subReachPosTwo = zone
 
+    #################################################################################
+    # SETTER FOR MIGRATION DISTANCE
+    #################################################################################
     def SetMigrationDistance(self, distance):
         self.migrationDistance = distance
 
@@ -80,6 +87,18 @@ class Fish:
     #################################################################################
     def SetRecaughtStat(self, reCaught):
         self.reCaught = reCaught
+
+    #################################################################################
+    # SETTER FOR PARAMETER CAPTURE ONE
+    #################################################################################
+    def SetParameterCaptureOne(self, ParameterVariedCaptureOne):
+        self.ParameterVariedCaptureOne = ParameterVariedCaptureOne
+
+    #################################################################################
+    # SETTER FOR PARAMETER CAPTURE TWO
+    #################################################################################
+    def SetParameterCaptureTwo(self, ParameterVariedCaptureTwo):
+        self.ParameterVariedCaptureTwo = ParameterVariedCaptureTwo
 
     #################################################################################
     # GETTER FOR FISH  Q 1
@@ -134,3 +153,15 @@ class Fish:
     #################################################################################
     def GetRecaughtStat(self):
         return self.reCaught
+
+    #################################################################################
+    # GETTER FOR PARAMETER CAPTURE ONE
+    #################################################################################
+    def GetParameterCaptureOne(self):
+        return self.ParameterVariedCaptureOne
+
+    #################################################################################
+    # GETTER FOR PARAMETER CAPTURE TWO
+    #################################################################################
+    def GetParameterCaptureTwo(self):
+        return self.ParameterVariedCaptureTwo

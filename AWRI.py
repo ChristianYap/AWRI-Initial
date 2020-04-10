@@ -29,7 +29,7 @@ from scipy.stats import beta, skew
 
 # Global Variables
 REACH_SIZE = 100
-BETA_DISTRIBUTION = 2.75
+BETA_DISTRIBUTION = 2.70
 simulationSaves = []
 global simulationResult
 global testResultArray
@@ -167,6 +167,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.saveSpecificTrialCheckBox.setChecked(True)
 
         self.progressBar.setVisible(False)
+        self.actionSave_Results.setVisible(False)
 
     #################################################################################
     # Group the buttons so user can only choose one option in each group
@@ -234,6 +235,23 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # Save Results Button
         self.pushButtonShowDistribution.clicked.connect(self.betaDistribution)
         self.saveResultsButton.clicked.connect(self.SaveResults)
+
+        # Menu
+        self.actionExit.triggered.connect(self.ActionExit)
+        self.actionUser_Manual.triggered.connect(self.UserManual)
+
+    #################################################################################
+    # User Manual
+    #################################################################################
+    def UserManual(self):
+        QMessageBox.information(self, "User Manual", "User Manual is available at the following link:\n"
+                                               "https://github.com/staddlez/AWRI-Initial\n(Hold Ctrl + C to copy link)")
+
+    #################################################################################
+    # Exit
+    #################################################################################
+    def ActionExit(self):
+        self.close()
 
     #################################################################################
     # Clear Saved Data
@@ -921,12 +939,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 fishDataCapTwo = fishData[itr].GetCaptureProbabilityTwo()
                 self.tableRawFishData.setItem(numRows, 0, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishDataCapOne, digits=2))))
                 self.tableRawFishData.setItem(numRows, 6, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishDataCapTwo, digits=2))))
+
                 if simulationSaves[inputNumber].GetParamCaptureCategory() == 1:
                     if fishDataCapOne <= simulationSaves[inputNumber].GetParamCaptureOne():
                         self.tableRawFishData.item(numRows, 0).setBackground(QColor(55, 174, 114))
                     if fishDataCapTwo <= simulationSaves[inputNumber].GetParamCaptureTwo():
                         self.tableRawFishData.item(numRows, 6).setBackground(QColor(55, 174, 114))
-                else:
+                elif simulationSaves[inputNumber].GetParamCaptureCategory() == 2:
                     if fishDataCapOne <= fishData[itr].GetParameterCaptureOne():
                         self.tableRawFishData.item(numRows, 0).setBackground(QColor(55, 174, 114))
                     if fishDataCapTwo <= fishData[itr].GetParameterCaptureTwo():
@@ -945,17 +964,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 self.tableRawFishData.setItem(numRows, 3, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishData[itr].GetTagLoss(), digits=2))))
                 if tagStatus == 0:
                     self.tableRawFishData.item(numRows, 2).setBackground(QColor(223, 36, 36))
+                elif tagStatus == 1:
+                    self.tableRawFishData.item(numRows, 2).setBackground(QColor(55, 174, 114))
 
                 # Mortality:
                 mortalityStatus = fishData[itr].GetMortality()
                 self.tableRawFishData.setItem(numRows, 4, QTableWidgetItem(str(mortalityStatus)))
                 if mortalityStatus == 0:
                     self.tableRawFishData.item(numRows, 4).setBackground(QColor(223, 36, 36))
+                elif mortalityStatus == 1:
+                    self.tableRawFishData.item(numRows, 4).setBackground(QColor(55, 174, 114))
 
                 # Migration distance:
                 self.tableRawFishData.setItem(numRows, 5, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishData[itr].GetMigrationDistance(), digits=2))))
 
-                #Subreach two:
+                # Subreach two:
                 subReachPosTwo = fishData[itr].GetSubReachPosTwo()
                 self.tableRawFishData.setItem(numRows, 7, QTableWidgetItem(str('{number:.{digits}f}'.format(number=subReachPosTwo, digits=2))))
                 if simulationSaves[inputNumber].GetBoundApplicable() == 1:
@@ -1253,6 +1276,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             thisSimulation.SetParamCaptureCategory(1)
             thisSimulation.SetParamCaptureOne(self.captureProbabilityInput.value())
             thisSimulation.SetParamCaptureTwo(self.captureProbabilityInputVaryTwo.value())
+        elif self.checkBoxCaptureRandomPerFish.isChecked():
+            thisSimulation.SetParamCaptureCategory(2)
+
         if self.checkBoxVariedSubreach.isChecked():
             thisSimulation.SetBoundApplicable(1)
             thisSimulation.SetParamLowBound(lowerBoundStudyReach)
@@ -1324,6 +1350,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.simulationParameterPrint.clear()
 
         if self.checkBoxOpenPopulation.isChecked() and not self.checkBoxClosedPopulation.isChecked():
+            plt.close()
             self.simulateMulti(1)
         else:
             # Declare array for results:
@@ -1703,6 +1730,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             thisSimulation.SetParamCaptureCategory(1)
             thisSimulation.SetParamCaptureOne(self.captureProbabilityInput.value())
             thisSimulation.SetParamCaptureTwo(self.captureProbabilityInputVaryTwo.value())
+        elif self.checkBoxCaptureRandomPerFish.isChecked():
+            thisSimulation.SetParamCaptureCategory(2)
 
         if self.checkBoxVariedSubreach.isChecked():
             thisSimulation.SetBoundApplicable(1)
