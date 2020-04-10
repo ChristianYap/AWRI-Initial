@@ -939,16 +939,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                 fishDataCapTwo = fishData[itr].GetCaptureProbabilityTwo()
                 self.tableRawFishData.setItem(numRows, 0, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishDataCapOne, digits=2))))
                 self.tableRawFishData.setItem(numRows, 6, QTableWidgetItem(str('{number:.{digits}f}'.format(number=fishDataCapTwo, digits=2))))
-
                 if simulationSaves[inputNumber].GetParamCaptureCategory() == 1:
                     if fishDataCapOne <= simulationSaves[inputNumber].GetParamCaptureOne():
                         self.tableRawFishData.item(numRows, 0).setBackground(QColor(55, 174, 114))
                     if fishDataCapTwo <= simulationSaves[inputNumber].GetParamCaptureTwo():
                         self.tableRawFishData.item(numRows, 6).setBackground(QColor(55, 174, 114))
                 elif simulationSaves[inputNumber].GetParamCaptureCategory() == 2:
-                    if fishDataCapOne <= fishData[itr].GetParameterCaptureOne():
+                    if fishDataCapOne <= fishData[itr].GetParameterCaptureOne()[0]:
                         self.tableRawFishData.item(numRows, 0).setBackground(QColor(55, 174, 114))
-                    if fishDataCapTwo <= fishData[itr].GetParameterCaptureTwo():
+                    if fishDataCapTwo <= fishData[itr].GetParameterCaptureTwo()[0]:
                         self.tableRawFishData.item(numRows, 6).setBackground(QColor(55, 174, 114))
 
                 # Subreach One:
@@ -1574,9 +1573,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                         # Do this third scenario if fish has random capture probability as well:
                         elif self.checkBoxCaptureRandomPerFish.isChecked():
                             # Check if it's in the sub reach in the first place:
-                            if lowerBoundStudyReach <= fishPopulation[j].GetSubReachPosTwo() <= upperBoundStudyReach:
+                            fishPopulation[k].SetParameterCaptureTwo(np.random.rand(1))
+                            if lowerBoundStudyReach <= fishPopulation[k].GetSubReachPosTwo() <= upperBoundStudyReach:
                                 # Can we capture it?
-                                fishPopulation[k].SetParameterCaptureTwo(np.random.rand(1))
                                 if fishPopulation[k].captureProbQTwo <= fishPopulation[k].GetParameterCaptureTwo():
                                     secondPassFishes += 1
                                     fishPopulation[k].SetRecaughtStat('NO TAG')
@@ -1658,11 +1657,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                         # Do this third scenario if fish has random capture probability as well:
                         elif self.checkBoxCaptureRandomPerFish.isChecked():
                             # Check if it's in the sub reach in the first place:
+                            fishPopulation[k].SetParameterCaptureTwo(np.random.rand(1))
                             if lowerBoundStudyReach <= fishPopulation[k].GetSubReachPosTwo() <= upperBoundStudyReach:
                                 # Can't capture a dead fish:
                                 if not fishPopulation[k].GetMortality() == 0:
                                     # Can we capture it?
-                                    fishPopulation[k].SetParameterCaptureTwo(np.random.rand(1))
                                     if fishPopulation[k].captureProbQTwo <= fishPopulation[k].GetParameterCaptureTwo():
                                         secondPassFishes += 1
                                         fishPopulation[k].SetRecaughtStat('NO TAG')
@@ -1941,9 +1940,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     # Do this third scenario if fish has random capture probability as well:
                     elif self.checkBoxCaptureRandomPerFish.isChecked():
                         # Check if it's in the sub reach in the first place:
+                        fishPopulation[k].SetParameterCaptureTwo(np.random.rand(1))
                         if lowerBoundStudyReach <= fishPopulation[k].GetSubReachPos() <= upperBoundStudyReach:
                             # Can we capture it?
-                            fishPopulation[k].SetParameterCaptureTwo(np.random.rand(1))
                             if fishPopulation[k].captureProbQTwo <= fishPopulation[k].GetParameterCaptureTwo():
                                 secondPassFishes += 1
                                 fishPopulation[k].SetRecaughtStat('NO TAG')
@@ -2029,11 +2028,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                     # Do this third scenario if fish has random capture probability as well:
                     elif self.checkBoxCaptureRandomPerFish.isChecked():
                         # Check if it's in the sub reach in the first place:
+                        fishPopulation[k].SetParameterCaptureTwo(np.random.rand(1))
                         if lowerBoundStudyReach <= fishPopulation[k].GetSubReachPosTwo() <= upperBoundStudyReach:
                             # Can't capture a dead fish:
                             if not fishPopulation[k].GetMortality() == 0:
                                 # Can we capture it?
-                                fishPopulation[k].SetParameterCaptureTwo(np.random.rand(1))
                                 if fishPopulation[k].captureProbQTwo <= fishPopulation[k].GetParameterCaptureTwo():
                                     secondPassFishes += 1
                                     fishPopulation[k].SetRecaughtStat('NO TAG')
