@@ -427,6 +427,7 @@ class Ui_MainWindow(object):
         self.rawDataTableLabel.setObjectName("rawDataTableLabel")
         self.gridLayout_3.addWidget(self.rawDataTableLabel, 2, 0, 1, 1)
         self.simulationReviewer = QtWidgets.QTextEdit(self.tabResults)
+        self.simulationReviewer.setReadOnly(False)
         self.simulationReviewer.setObjectName("simulationReviewer")
         self.gridLayout_3.addWidget(self.simulationReviewer, 5, 0, 1, 2)
         self.trialsLabel = QtWidgets.QLabel(self.tabResults)
@@ -510,9 +511,13 @@ class Ui_MainWindow(object):
         self.actionDebug_Mode = QtWidgets.QAction(MainWindow)
         self.actionDebug_Mode.setCheckable(True)
         self.actionDebug_Mode.setObjectName("actionDebug_Mode")
+        self.actionNight_Mode = QtWidgets.QAction(MainWindow)
+        self.actionNight_Mode.setCheckable(True)
+        self.actionNight_Mode.setObjectName("actionNight_Mode")
         self.menuMain.addAction(self.actionSave_Results)
         self.menuMain.addAction(self.actionExit)
         self.menuResults.addAction(self.actionUser_Manual)
+        self.menuResults.addAction(self.actionNight_Mode)
         self.menuResults.addAction(self.actionDebug_Mode)
         self.menubar.addAction(self.menuMain.menuAction())
         self.menubar.addAction(self.menuResults.menuAction())
@@ -639,6 +644,7 @@ class Ui_MainWindow(object):
         self.actionSave_Results.setText(_translate("MainWindow", "Save Results"))
         self.actionExit.setText(_translate("MainWindow", "Exit"))
         self.actionDebug_Mode.setText(_translate("MainWindow", "Debug Mode"))
+        self.actionNight_Mode.setText(_translate("MainWindow", "Night Mode"))
 
 
 if __name__ == "__main__":
